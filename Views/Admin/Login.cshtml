@@ -1,0 +1,103 @@
+﻿
+@using GooseGooseGo_Net.ef;
+
+@{
+    Layout = "/Views/Shared/_Layout_Admin.cshtml";
+
+    mApp _m_App = @Model;
+    var iConf = _m_App.getSiteConf();
+
+    string lt_username = "";
+    string lt_pwd = "";
+    if (_m_App.bIsLocal)
+    {
+        var lt_conf = iConf!.GetSection("Login_Temp");
+        if (bool.Parse(lt_conf["lt_enable"]!) == true)
+        {
+            lt_username = $"value={lt_conf["lt_username"]!}";
+            lt_pwd = $"value={lt_conf["lt_pwd"]!}";
+        }
+    }
+    ViewData["Title"] = "Admin";
+}
+
+<div class="form-signin w-100 m-auto">
+<form method="post">
+    <h1 class="h3 mb-3 fw-normal">Please sign in</h1>
+
+    <div class="form-floating">
+        <input type="text" name="user_username" class="form-control" id="floatingInput" placeholder="Username" @lt_username>
+        <label for="floatingInput">Username</label>
+    </div>
+    <div class="form-floating">
+        <input type="password" name="user_pwd" class="form-control" id="floatingPassword" placeholder="Password" @lt_pwd>
+        <label for="floatingPassword">Password</label>
+    </div>
+
+        <div class="form-check text-start my-3 d-none">
+        <input class="form-check-input" type="checkbox" value="remember-me" id="flexCheckDefault">
+        <label class="form-check-label" for="flexCheckDefault">
+            Remember me
+        </label>
+    </div>
+    <button class="btn btn-primary w-100 py-2" type="submit">Sign in</button>
+</form>
+</div>
+
+
+<script type="text/javascript">
+    var mUrl = '@(_m_App.mUrl)';
+
+    $(function() {
+        doInit();
+    });
+
+    function doInit() {
+        $("form").on("submit", function(e) {
+            
+            e.preventDefault();
+
+            let loginParms = { user_username: $("[name='user_username']").val(), user_pwd: $("[name='user_pwd']").val() }
+            doApiPost(doLoginContinue, e, loginParms, "api/auth/login");
+        });
+    }
+
+    function doLoginContinue(ret, e) {
+        var rd = ret.data;
+        var ts = ret.textStatus;
+        if (rd !== null) {
+            if (rd.token !== undefined) {
+                localStorage.setItem('@(_m_App._m_jwtTokenName)', rd.token);
+                window.location.href = mUrl + '/admin'; // Change "/dashboard" to your actual post-login page
+            }
+        } else {
+
+            if (ret.jqXHR.statusText === "Unauthorized") {
+                alert(ret.jqXHR.statusText);
+            }
+            else {
+                alert(ret.textStatus);
+            }
+        }
+    }
+
+    async function login(username, password) {
+        const response = await fetch(mUrl + '/api/auth/login', {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username, password })
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            localStorage.setItem("accessToken", data.AccessToken);
+            localStorage.setItem("refreshToken", data.RefreshToken);
+            console.log("Login successful!");
+        } else {
+            console.error("Login failed:", data.Message);
+        }
+    }
+
+
+</script>

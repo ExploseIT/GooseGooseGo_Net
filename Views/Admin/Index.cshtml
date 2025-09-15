@@ -1,0 +1,55 @@
+﻿
+@using GooseGooseGo_Net.ef;
+
+@{
+    Layout = "/Views/Shared/_Layout_Admin.cshtml";
+
+    mApp _m_App = @Model;
+
+    ViewData["Title"] = "Admin";
+}
+
+
+<h1>Admin Dashboard</h1>
+<div id="dashboard-content">Loading...</div>
+
+<script type="text/javascript">
+
+    var mUrl = '@(_m_App.mUrl)';
+
+    $(function() {
+        let token = localStorage.getItem('@(_m_App._m_jwtTokenName)');
+
+        if (!token) {
+            window.location.href = mUrl + '/admin/login'; // Redirect to login if no token
+            return;
+        }
+    });
+
+    function loadView(viewUrl) {
+        let token = localStorage.getItem('@(_m_App._m_jwtTokenName)');
+
+        $.ajax({
+            type: "GET",
+            url: mUrl + viewUrl,
+            headers: { "Authorization": "Bearer " + token }, // ✅ Token is sent in headers
+            success: function (response) {
+                $("#dashboard-content").html(response); // ✅ Load content into div
+            },
+            error: function (xhr) {
+                console.error("Unauthorized:", xhr.statusText);
+                window.location.href = "/admin/login";
+            }
+        });
+    }
+</script>
+
+<!-- ✅ Navigation (Loads Views Dynamically) -->
+<ul>
+    <li><a href="#" onclick="loadView('/admin/productDataList')">Product Data List</a></li>
+    <li><a href="#" onclick="loadView('/admin/blogList')">Blog List</a></li>
+    <li><a href="#" onclick="loadView('/admin/appContent')">App Content</a></li>
+</ul>
+
+
+

@@ -1,0 +1,39 @@
+﻿
+@using GooseGooseGo_Net
+@using GooseGooseGo_Net.Services
+
+@{
+    ViewData["Title"] = "Home Page";
+    mApp _m_App = @Model;
+
+    List <KeyValuePair<string, KrakenTickerEntry>>? krakenList = _m_App._krakenData!.Result?.ToList();
+    CryptoComTickerResult cryptocomList = _m_App._cryptocomData!.Result;
+
+    <h3>
+        Number of Kraken items: @(krakenList?.Count ?? 0)
+    </h3>
+    <h3>
+        Number of Crypto.com items: @(cryptocomList.Data.Count)
+    </h3>
+    <h4>Kraken assets</h4>
+    foreach (var item in krakenList!)
+    {
+        if (String.Compare(item.Key, "CROUSD", true) == 0 || String.Compare(item.Key, "KSMUSD", true) == 0)
+        {
+            <div>
+                <strong>@item.Key:</strong> @item.Value.LastTrade!.First()
+            </div>
+        }
+    }
+    <h4>Crypto.com assets</h4>
+    foreach (var item in cryptocomList.Data!)
+    {
+        if (String.Compare(item.Instrument, "CRO_USD", true) == 0 || String.Compare(item.Instrument, "KSM_USD", true) == 0)
+        {
+            <div>
+                <strong>@item.Instrument:</strong> @item.Last
+            </div>
+        }
+    }
+}
+

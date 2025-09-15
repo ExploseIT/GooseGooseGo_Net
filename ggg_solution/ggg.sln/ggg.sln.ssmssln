@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# SQL Server Management Studio Solution File, Format Version 20.00
+VisualStudioVersion = 15.0.28307.421
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{4F2E2C19-372F-40D8-9FA7-9D2138C6997A}") = "ggg_sql_01", "ggg_sql_01\ggg_sql_01.ssmssqlproj", "{688F245E-6DB2-42B6-ACD0-0FD07979CBE2}"
+EndProject
+Project("{4F2E2C19-372F-40D8-9FA7-9D2138C6997A}") = "ggg_create", "ggg_create\ggg_create.ssmssqlproj", "{FA400274-8AD7-458A-8BD5-55E8E5015D43}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Default|Default = Default|Default
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{71F23032-9E66-4791-871D-B8CBDEF94E85}.Default|Default.ActiveCfg = Default
+		{688F245E-6DB2-42B6-ACD0-0FD07979CBE2}.Default|Default.ActiveCfg = Default
+		{FA400274-8AD7-458A-8BD5-55E8E5015D43}.Default|Default.ActiveCfg = Default
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {C6AC2223-460D-45B3-9ACC-88D7B2684C67}
+	EndGlobalSection
+EndGlobal
