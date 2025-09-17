@@ -1,12 +1,15 @@
 
-USE ggg_db
+USE master
 GO
 
-/****** Object:  Table [dbo].[tblSettings]    Script Date: 11/06/2025 23:06:30 ******/
-SET ANSI_NULLS ON
+if not exists (select * from sys.databases where name='ggg_db')
+CREATE DATABASE [ggg_db]
 GO
-SET QUOTED_IDENTIFIER ON
-GO
+
+use ggg_db
+go
+
+if not exists (select * from sys.tables where name='tblSettings')
 CREATE TABLE [dbo].[tblSettings](
 	[setId] [int] IDENTITY(1,1) NOT NULL,
 	[setName] [nvarchar](100) NOT NULL,
@@ -18,12 +21,10 @@ CREATE TABLE [dbo].[tblSettings](
 )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
 ) ON [PRIMARY]
 GO
-/****** Object:  View [dbo].[vwSettings]    Script Date: 11/06/2025 23:06:30 ******/
-SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
 
+if exists (select * from sys.views where name='vwSettings' )
+Drop  View [dbo].[vwSettings]
+go
 CREATE View [dbo].[vwSettings]
 as
 SELECT
@@ -34,11 +35,10 @@ setId
 FROM            dbo.tblSettings
 GO
 
-/****** Object:  StoredProcedure [dbo].[spSettingsList]    Script Date: 11/06/2025 23:06:33 ******/
-SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
+
+if exists (select * from sys.procedures where name='spSettingsList')
+Drop PROCEDURE [dbo].[spSettingsList]
+go
 
 -- =============================================
 -- Author:		Tony Stoddart
@@ -56,12 +56,10 @@ order by setid asc
 
 END
 GO
-/****** Object:  StoredProcedure [dbo].[spSettingsListAll]    Script Date: 11/06/2025 23:06:33 ******/
-SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
 
+if exists (select * from sys.procedures where name='spSettingsListAll')
+Drop PROCEDURE [dbo].[spSettingsListAll]
+Go
 -- =============================================
 -- Author:		Tony Stoddart
 -- Create date: 15/05/2023
@@ -78,12 +76,11 @@ order by setId asc
 
 END
 GO
-/****** Object:  StoredProcedure [dbo].[spSettingsUpdateById]    Script Date: 11/06/2025 23:06:33 ******/
-SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
 
+
+if exists (select * from sys.procedures where name='spSettingsUpdateById')
+Drop PROCEDURE [dbo].[spSettingsUpdateById]
+go
 -- =============================================
 -- Author:		Tony Stoddart
 -- Create date: 15/05/2023
