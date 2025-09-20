@@ -3,7 +3,6 @@
 using GooseGooseGo_Net.ef;
 using GooseGooseGo_Net.Models;
 using GooseGooseGo_Net.Services;
-using GooseGooseGo_Net.Services.GooseGooseGo_Net.Services;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;

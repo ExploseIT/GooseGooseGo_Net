@@ -30,7 +30,8 @@ namespace GooseGooseGo_Net.ef
         public DbSet<ent_page> lPage { get; set; }
         public DbSet<cPageData> lPageData { get; set; }
         public DbSet<cPageContent> lPageContent { get; set; }
-
+        public DbSet<cKraken> lKraken { get; set; }
+        public DbSet<cKrakenAssetInfo> lKrakenAssetInfo { get; set; }
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
@@ -41,4 +42,6 @@ namespace GooseGooseGo_Net.ef
         }
     }
 
-    }
+}
+
+

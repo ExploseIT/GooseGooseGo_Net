@@ -6,14 +6,7 @@ using System.Text.Json.Serialization;
 
 namespace GooseGooseGo_Net.Services
 {
-    using System.Security.Cryptography;
-    using System.Text;
-    using System.Text.Json;
-    using System.Text.Json.Serialization;
-    using static System.Net.WebRequestMethods;
 
-    namespace GooseGooseGo_Net.Services
-    {
         public partial class CryptoComClient
         {
             private static readonly HttpClient Http = new HttpClient();
@@ -241,8 +234,6 @@ namespace GooseGooseGo_Net.Services
                 return env;
             }
         }
-    }
-
 
     // Generic v1 envelope: { id, method, code, result }
     public sealed class CryptoComEnvelope<T>
@@ -324,4 +315,8 @@ namespace GooseGooseGo_Net.Services
         // timestamp (ms)
         [JsonPropertyName("t")] public long Timestamp { get; set; }
     }
+
 }
+
+
+

@@ -1,9 +1,8 @@
-
-
 using GooseGooseGo_Net.ef;
 using GooseGooseGo_Net.Models;
+using GooseGooseGo_Net.Services;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.FileProviders;
+
 
 var builder = WebApplication.CreateBuilder(args);
 var services = builder.Services;
@@ -15,9 +14,11 @@ builder.Logging.AddConsole();
 
 builder.Configuration.GetSection("CookieAuth").Bind(cookieAuthOptions);
 builder.Services.AddDbContext<dbContext>(options => options.UseSqlServer(connectionString));
-
-// Add services to the container.
-builder.Services.AddControllersWithViews();
+builder.Services.AddSingleton<AssetDataService>();
+//builder.Services.AddHostedService<AssetDataBackgroundService>();
+builder.Services.AddAuthorization();
+builder.Services.AddControllersWithViews(); // <-- Use this for MVC views
+// builder.Services.AddRazorPages(); // <-- Add if you use Razor Pages
 
 var app = builder.Build();
 

@@ -27,11 +27,13 @@ http://goosegoosego.t21.uk/
 ## Getting Started
 
 
-
 ### Prerequisites
 
 - [.NET SDK](https://dotnet.microsoft.com/en-us/download/dotnet/8.0) (8.0 or later)
 - [SQL Server](https://www.microsoft.com/en-us/sql-server/sql-server-downloads)
+- [SQL Server Management Studio (SSMS)](https://aka.ms/ssms)
+   - Download and run the installer from the link above.
+   - SSMS provides a graphical interface for managing SQL Server databases.
 - [Visual Studio 2022](https://visualstudio.microsoft.com/vs/)
 - [Visual Studio Code](https://code.visualstudio.com/)
 - [Git for Windows](https://git-scm.com/download/win)
@@ -54,3 +56,8 @@ On MacOs or Linux use bash / terminal
 
 3. **Build wwwroot/dist folder**:
   From node_modules by running 'npm install' then 'npx gulp'
+
+4. **Create the ggg_net application pool in IIS**:
+ Only if this is possible and you're in the Windows environment.
+ Otherwise there will have to be workarounds.
+ For this, locate and run the ggg_solution\ggg.sln\ggg_create\ggg_create.sql script in Sql Studio Management Studio
