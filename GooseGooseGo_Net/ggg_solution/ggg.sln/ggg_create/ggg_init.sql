@@ -22,6 +22,99 @@ CREATE TABLE [dbo].[tblSettings](
 ) ON [PRIMARY]
 GO
 
+/*
+drop table tblAssetSource
+go
+drop table tblAssetWatch
+go
+*/
+
+if not exists (select * from sys.tables where name='tblAssetSource')
+CREATE TABLE [dbo].[tblAssetSource](
+	[assId] [nvarchar](20) NOT NULL,
+	[assSource] [nvarchar](300) NOT NULL,
+	[assDTAdded] [nchar](10) NOT NULL,
+	[assEnabled] [bit] NOT NULL,
+ CONSTRAINT [PK_tblAssetSource] PRIMARY KEY CLUSTERED 
+(
+	[assId] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+
+if not exists (select * from sys.tables where name='tblAssetWatch')
+CREATE TABLE [dbo].[tblAssetWatch](
+	[aswId] [int] IDENTITY(1,1) NOT NULL,
+	[aswSourceId] [nvarchar](10) NOT NULL,
+	[aswPair] [nvarchar](32) NOT NULL,
+	[aswEnabled] [bit] NOT NULL,
+	[aswPriceTriggerUp] [decimal](18, 4) NULL,
+	[aswPriceTriggerDown] [decimal](18, 4) NULL,
+	[aswPriceTakeProfit] [decimal](18, 4) NULL,
+	[aswPriceStopLoss] [decimal](18, 4) NULL,
+
+ CONSTRAINT [PK_tblAssetWatch] PRIMARY KEY CLUSTERED 
+(
+	[aswId] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+
+
+if not exists (select * from tblAssetSource where assId='ASS_KRAKEN')
+INSERT INTO [dbo].[tblAssetSource]
+           ([assId]
+           ,[assSource]
+           ,[assDTAdded]
+           ,[assEnabled])
+     VALUES
+           ('ASS_KRAKEN'
+           ,'KRAKEN'
+           ,GETDATE()
+           ,1)
+GO
+
+if not exists (select * from tblAssetWatch where aswSourceId='ASS_KRAKEN' and aswPair='MUSD')
+INSERT INTO [dbo].[tblAssetWatch]
+           ([aswSourceId]
+           ,[aswPair]
+           ,[aswEnabled]
+           ,[aswPriceTriggerUp]
+		   ,[aswPriceTriggerDown]
+           ,[aswPriceTakeProfit]
+           ,[aswPriceStopLoss])
+     VALUES
+           ('ASS_KRAKEN'
+           ,'MUSD'
+           ,1
+           ,2.4
+		   ,2.4
+           ,2.6
+           ,1.8)
+GO
+
+
+if exists (select * from sys.procedures where name='spAssetWatchList')
+drop procedure spAssetWatchList
+go
+create procedure spAssetWatchList
+as
+begin
+select [aswId]
+      ,[aswSourceId]
+      ,[aswPair]
+	  , cast((select top 1 ka.kaLastTrade from tblKrakenAsset ka left join tblKrakenAssetInfo kai on ka.kaIndex=kai.kaiId where ka.kaPair=asw.aswPair order by kai.kaiDT desc)
+	   as decimal(18,4)) as aswLastTrade
+      ,[aswEnabled]
+      ,[aswPriceTriggerUp]
+	  ,[aswPriceTriggerDown]
+      ,[aswPriceTakeProfit]
+      ,[aswPriceStopLoss]
+  from [dbo].[tblAssetWatch] asw
+end
+
+go
+
 
 
 if exists (select * from sys.procedures where name='spKrakenRestart')
@@ -69,26 +162,118 @@ IF EXISTS (SELECT * FROM sys.procedures WHERE name = 'spKrakenRollingPercentSwin
 GO
 
 CREATE PROCEDURE spKrakenRollingPercentSwing
-    @MinSwing DECIMAL(18, 6),
-    @PeriodValue INT,
-    @PeriodUnit NVARCHAR(10)
+    @kapsMinSwing DECIMAL(18, 4),
+    @kapsPeriodValue INT,
+    @kapsPeriodUnit NVARCHAR(10),
+    @kapsPeriodOffset INT
 AS
 BEGIN
-    -- Use latest kaiDT from data, not the system time
     DECLARE @Now DATETIME = (SELECT MAX(kaiDT) FROM tblKrakenAssetInfo);
     DECLARE @IntervalStart DATETIME;
+    DECLARE @IntervalEnd DATETIME;
+    DECLARE @indStart INT;
+    DECLARE @indEnd INT;
+
+    -- Calculate interval start and end, supporting offset windows
+    SET @IntervalEnd = 
+        CASE @kapsPeriodUnit
+            WHEN 'minute' THEN DATEADD(MINUTE, -(@kapsPeriodValue * @kapsPeriodOffset), @Now)
+            WHEN 'hour'   THEN DATEADD(HOUR,   -(@kapsPeriodValue * @kapsPeriodOffset), @Now)
+            WHEN 'day'    THEN DATEADD(DAY,    -(@kapsPeriodValue * @kapsPeriodOffset), @Now)
+            WHEN 'week'   THEN DATEADD(WEEK,   -(@kapsPeriodValue * @kapsPeriodOffset), @Now)
+            WHEN 'month'  THEN DATEADD(MONTH,  -(@kapsPeriodValue * @kapsPeriodOffset), @Now)
+            ELSE DATEADD(MINUTE, -(@kapsPeriodValue * @kapsPeriodOffset), @Now)
+        END;
+
+    SET @IntervalStart = 
+        CASE @kapsPeriodUnit
+            WHEN 'minute' THEN DATEADD(MINUTE, -(@kapsPeriodValue * (1 + @kapsPeriodOffset)), @Now)
+            WHEN 'hour'   THEN DATEADD(HOUR,   -(@kapsPeriodValue * (1 + @kapsPeriodOffset)), @Now)
+            WHEN 'day'    THEN DATEADD(DAY,    -(@kapsPeriodValue * (1 + @kapsPeriodOffset)), @Now)
+            WHEN 'week'   THEN DATEADD(WEEK,   -(@kapsPeriodValue * (1 + @kapsPeriodOffset)), @Now)
+            WHEN 'month'  THEN DATEADD(MONTH,  -(@kapsPeriodValue * (1 + @kapsPeriodOffset)), @Now)
+            ELSE DATEADD(MINUTE, -(@kapsPeriodValue * (1 + @kapsPeriodOffset)), @Now)
+        END;
+
+    -- Find the closest kaiId before or at each interval boundary
+    SELECT TOP 1 @indStart = kaiId FROM tblKrakenAssetInfo WHERE kaiDT <= @IntervalStart ORDER BY kaiDT DESC;
+    SELECT TOP 1 @indEnd = kaiId FROM tblKrakenAssetInfo WHERE kaiDT <= @IntervalEnd ORDER BY kaiDT DESC;
+
+    -- CTEs for start and end asset data
+    ;WITH windStart AS (
+        SELECT * FROM tblKrakenAsset WHERE kaIndex = @indStart
+    ),
+    windEnd AS (
+        SELECT * FROM tblKrakenAsset WHERE kaIndex = @indEnd
+    )
+    SELECT 
+        wsStart.kaPair AS kapsPair,
+        CAST(wsStart.kaLastTrade AS DECIMAL(18, 4)) AS kapsStartTrade,
+        CAST(wsEnd.kaLastTrade AS DECIMAL(18, 4)) AS kapsEndTrade,
+        -- Standard percent change calculation; NULL if not computable
+        CASE 
+            WHEN wsStart.kaLastTrade = 0.0 OR wsEnd.kaLastTrade = 0.0 THEN NULL
+            ELSE CAST((wsEnd.kaLastTrade - wsStart.kaLastTrade) * 100.0 / wsStart.kaLastTrade AS DECIMAL(18, 3))
+        END AS kapsTradeDiffPercent,
+        CAST((wsEnd.kaLastTrade - wsStart.kaLastTrade) AS DECIMAL(18, 4)) AS kapsTradeDiff,
+        CAST(ABS(wsEnd.kaLastTrade - wsStart.kaLastTrade) AS DECIMAL(18, 4)) AS kapsTradeDiffAbs,
+        wsStart.kaVolume24h AS kapsStartVolume,
+        wsEnd.kaVolume24h AS kapsEndVolume,
+        wsStart.kaRetrievedAt AS kapsStartRetrievedAt,
+        wsEnd.kaRetrievedAt AS kapsEndRetrievedAt
+    FROM windStart wsStart
+    INNER JOIN windEnd wsEnd ON wsStart.kaPair = wsEnd.kaPair
+    -- Filter by minimum swing if computable
+    WHERE 
+        CASE 
+            WHEN wsStart.kaLastTrade = 0.0 OR wsEnd.kaLastTrade = 0.0 THEN 0
+            ELSE ABS((wsEnd.kaLastTrade - wsStart.kaLastTrade) * 100.0 / wsStart.kaLastTrade)
+        END >= @kapsMinSwing
+    ORDER BY
+        CASE 
+            WHEN wsStart.kaLastTrade = 0.0 OR wsEnd.kaLastTrade = 0.0 THEN 0
+            ELSE ABS((wsEnd.kaLastTrade - wsStart.kaLastTrade) * 100.0 / wsStart.kaLastTrade)
+        END DESC;
+END
+GO
+
+IF EXISTS (SELECT * FROM sys.procedures WHERE name = 'spKrakenRollingPercentSwing2')
+    DROP PROCEDURE spKrakenRollingPercentSwing2
+GO
+
+CREATE PROCEDURE spKrakenRollingPercentSwing2
+    @MinSwing DECIMAL(18, 6),
+    @PeriodValue INT,
+    @PeriodUnit NVARCHAR(10),
+	@PeriodOffset INT
+
+AS
+BEGIN
+    DECLARE @Now DATETIME = (SELECT MAX(kaiDT) FROM tblKrakenAssetInfo);
+    DECLARE @IntervalStart DATETIME
+    DECLARE @IntervalEnd DATETIME
+
+	SET @IntervalEnd = 
+        CASE @PeriodUnit
+            WHEN 'minute' THEN DATEADD(MINUTE, -@PeriodValue * @PeriodOffset, @Now)
+            WHEN 'hour'   THEN DATEADD(HOUR,   -@PeriodValue * @PeriodOffset, @Now)
+            WHEN 'day'    THEN DATEADD(DAY,    -@PeriodValue * @PeriodOffset, @Now)
+            WHEN 'week'   THEN DATEADD(WEEK,   -@PeriodValue * @PeriodOffset, @Now)
+            WHEN 'month'  THEN DATEADD(MONTH,  -@PeriodValue * @PeriodOffset, @Now)
+            ELSE DATEADD(MINUTE, -@PeriodValue * @PeriodOffset, @Now)
+        END;
 
     SET @IntervalStart = 
         CASE @PeriodUnit
-            WHEN 'minute' THEN DATEADD(MINUTE, -@PeriodValue, @Now)
-            WHEN 'hour'   THEN DATEADD(HOUR,   -@PeriodValue, @Now)
-            WHEN 'day'    THEN DATEADD(DAY,    -@PeriodValue, @Now)
-            WHEN 'week'   THEN DATEADD(WEEK,   -@PeriodValue, @Now)
-            WHEN 'month'  THEN DATEADD(MONTH,  -@PeriodValue, @Now)
-            ELSE DATEADD(MINUTE, -@PeriodValue, @Now)
+            WHEN 'minute' THEN DATEADD(MINUTE, -@PeriodValue * (1 + @PeriodOffset), @Now)
+            WHEN 'hour'   THEN DATEADD(HOUR,   -@PeriodValue * (1 + @PeriodOffset), @Now)
+            WHEN 'day'    THEN DATEADD(DAY,    -@PeriodValue * (1 + @PeriodOffset), @Now)
+            WHEN 'week'   THEN DATEADD(WEEK,   -@PeriodValue * (1 + @PeriodOffset), @Now)
+            WHEN 'month'  THEN DATEADD(MONTH,  -@PeriodValue * (1 + @PeriodOffset), @Now)
+            ELSE DATEADD(MINUTE, -@PeriodValue * (1 + @PeriodOffset), @Now)
         END;
 
-    ;WITH AssetInfoWindow AS (
+    WITH AssetInfoWindow AS (
         SELECT
             a.kaPair,
             a.kaLastTrade,
@@ -100,7 +285,7 @@ BEGIN
             ROW_NUMBER() OVER (PARTITION BY a.kaPair ORDER BY i.kaiDT ASC) AS rn_earliest
         FROM tblKrakenAsset a
         INNER JOIN tblKrakenAssetInfo i ON a.kaIndex = i.kaiId
-        WHERE i.kaiDT BETWEEN @IntervalStart AND @Now
+        WHERE i.kaiDT BETWEEN @IntervalStart AND @IntervalEnd
     ),
     LatestAssetInfo AS (
         SELECT * FROM AssetInfoWindow WHERE rn_latest = 1

@@ -23,6 +23,8 @@ namespace GooseGooseGo_Net.Services
                 // Retrieve asset data from Kraken and Crypto.com
                 // Store in DB using your DbContext
                 var dbCon = scope.ServiceProvider.GetRequiredService<dbContext>();
+                
+                var e_kraken = new ent_kraken(dbCon);
 
                 var resp = await KrakenClient.Request(
                     method: "GET",
@@ -42,7 +44,7 @@ namespace GooseGooseGo_Net.Services
                 var db = scope.ServiceProvider.GetRequiredService<dbContext>();
                 var now = DateTime.UtcNow;
                 cKrakenAssetInfo kai = new cKrakenAssetInfo();
-                var e_kraken = new ent_kraken(dbCon);
+                
                 try
                 {
                     if (krakenData?.Result != null)
@@ -78,7 +80,18 @@ namespace GooseGooseGo_Net.Services
                 {
                     exc = e;
                 }
+
+                var p_kps = new cKrakenPercentageSwingParms
+                {
+                    kapsMinSwing = 0.010M,
+                    kapsPeriodValue = 5,
+                    kapsPeriodUnit = "minute",
+                    kapsPeriodOffset = 0
+                };
+
+                var clkps = e_kraken.doKrakenPercentageSwingList(p_kps);
             }
+
         }
     }
 

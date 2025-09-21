@@ -32,6 +32,22 @@ namespace GooseGooseGo_Net.Controllers
 
             mApp _m_App = new mApp(_hc, this.Request, this.RouteData, _dbCon, _conf, _env, _logger);
 
+            var _e_cmcap = new ent_cmcap(_conf, _dbCon);
+            var _e_kraken = new ent_kraken(_dbCon);
+
+            var p_kps = new cKrakenPercentageSwingParms
+            {
+                kapsMinSwing = 0.010M,
+                kapsPeriodValue = 5,
+                kapsPeriodUnit = "minute",
+                kapsPeriodOffset = 0
+            };
+
+            var clkps = _e_kraken.doKrakenPercentageSwingList(p_kps);
+
+            string json_cmc = _e_cmcap.doAPIQuery();
+
+
             var resp = await KrakenClient.Request(
                 method: "GET",
                 path: "/0/public/Ticker",
