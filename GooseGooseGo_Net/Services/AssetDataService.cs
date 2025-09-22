@@ -8,11 +8,13 @@ namespace GooseGooseGo_Net.Services
     {
         private readonly IServiceProvider _services;
         private readonly IConfiguration _conf;
+        private readonly ILogger<AssetDataService>? _logger;
 
-        public AssetDataService(IServiceProvider services, IConfiguration conf)
+        public AssetDataService(IServiceProvider services, IConfiguration conf, ILogger<AssetDataService>? logger)
         {
             _services = services;
             _conf = conf;
+            _logger = logger;
         }
 
         public async Task RetrieveAndStoreAssetDataAsync(CancellationToken stoppingToken)
@@ -20,28 +22,15 @@ namespace GooseGooseGo_Net.Services
             Exception? exc = null;
             using (var scope = _services.CreateScope())
             {
-                // Retrieve asset data from Kraken and Crypto.com
+                // Retrieve asset data 
                 // Store in DB using your DbContext
+                var _conf = scope.ServiceProvider.GetRequiredService<IConfiguration>();
                 var dbCon = scope.ServiceProvider.GetRequiredService<dbContext>();
-                
-                var e_kraken = new ent_kraken(dbCon);
 
-                var resp = await KrakenClient.Request(
-                    method: "GET",
-                    path: "/0/public/Ticker",
-                    conf: _conf,
-                    environment: "https://api.kraken.com"
-                );
+                var e_kraken = new ent_kraken(_conf, dbCon, _logger!);
+                var krakenData = await e_kraken.doApi_TickerListAsync();
+                //var all = await CryptoComClient.GetTickersAsync(_conf);
 
-                var stream = await resp.Content.ReadAsStreamAsync();
-                KrakenEnvelope<Dictionary<string, KrakenTickerEntry>>? krakenData = await System.Text.Json.JsonSerializer.DeserializeAsync<
-                    KrakenEnvelope<Dictionary<string, KrakenTickerEntry>>
-                >(stream);
-
-
-                var all = await CryptoComClient.GetTickersAsync(_conf);
-
-                var db = scope.ServiceProvider.GetRequiredService<dbContext>();
                 var now = DateTime.UtcNow;
                 cKrakenAssetInfo kai = new cKrakenAssetInfo();
                 

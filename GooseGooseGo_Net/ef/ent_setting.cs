@@ -1,4 +1,5 @@
 ﻿
+using GooseGooseGo_Net.ef;
 using GooseGooseGo_Net.Models;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
@@ -7,10 +8,10 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using System.Data;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Web;
-using GooseGooseGo_Net.ef;
 
 namespace GooseGooseGo_Net.ef
 {
@@ -20,6 +21,9 @@ namespace GooseGooseGo_Net.ef
     {
         private dbContext? dbCon { get; } = null;
         private ILogger? logger { get; } = null!;
+        
+        private Exception? exc = null;
+
 
         public ent_setting(dbContext dbCon, ILogger logger)
         {
@@ -144,6 +148,56 @@ namespace GooseGooseGo_Net.ef
             var mEnum = mQuery.AsEnumerable<c_setting>();
 
             ret = mEnum.ToList<c_setting>();
+            return ret;
+        }
+
+        public c_setting doSettingReadByName(string setName)
+        {
+            c_setting ret = null!;
+
+            try
+            {
+                SqlParameter[] lParams = {
+                new SqlParameter("@setName", SqlDbType.NVarChar, 0, ParameterDirection.Input, true, 0, 0, "", DataRowVersion.Current, setName)
+            };
+
+                string sp = "spSettingsReadByName @setName";
+
+                var retSP = this.dbCon?.lSetting.FromSqlRaw(sp, lParams).AsEnumerable();
+
+                ret = retSP?.FirstOrDefault()!;
+            }
+            catch (Exception ex)
+            {
+                exc = ex;
+            }
+
+            return ret;
+        }
+
+        public c_setting doSettingsInsertByName(string setName, string setValue, string setDescription)
+        {
+            c_setting ret = null!;
+
+            try
+            {
+                SqlParameter[] lParams = {
+                new SqlParameter("@setName", SqlDbType.NVarChar, 0, ParameterDirection.Input, true, 0, 0, "", DataRowVersion.Current, setName)
+                , new SqlParameter("@setValue", SqlDbType.NVarChar, 0, ParameterDirection.Input, true, 0, 0, "", DataRowVersion.Current, setValue)
+                , new SqlParameter("@setDescription", SqlDbType.NVarChar, 0, ParameterDirection.Input, true, 0, 0, "", DataRowVersion.Current, setDescription)
+            };
+
+                string sp = "spSettingsInsertByName @setName, @setValue, @setDescription";
+
+                var retSP = this.dbCon?.lSetting.FromSqlRaw(sp, lParams).AsEnumerable();
+
+                ret = retSP?.FirstOrDefault()!;
+            }
+            catch (Exception ex)
+            {
+                exc = ex;
+            }
+
             return ret;
         }
 

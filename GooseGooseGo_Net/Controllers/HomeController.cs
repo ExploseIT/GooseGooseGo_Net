@@ -33,7 +33,9 @@ namespace GooseGooseGo_Net.Controllers
             mApp _m_App = new mApp(_hc, this.Request, this.RouteData, _dbCon, _conf, _env, _logger);
 
             var _e_cmcap = new ent_cmcap(_conf, _dbCon);
-            var _e_kraken = new ent_kraken(_dbCon);
+            var _e_kraken = new ent_kraken(_conf, _dbCon, _logger);
+
+            //var apiDetailsEncrypted = _e_kraken.doApiDetailsEncrypt();
 
             var p_kps = new cKrakenPercentageSwingParms
             {
@@ -45,22 +47,11 @@ namespace GooseGooseGo_Net.Controllers
 
             var clkps = _e_kraken.doKrakenPercentageSwingList(p_kps);
 
-            string json_cmc = _e_cmcap.doAPIQuery();
+            string json_cmc = await _e_cmcap.doAPIQuery();
 
+            var krakenData = _e_kraken.doApi_TickerListAsync();
 
-            var resp = await KrakenClient.Request(
-                method: "GET",
-                path: "/0/public/Ticker",
-                conf: _conf,
-                environment: "https://api.kraken.com"
-            );
-
-            var stream = await resp.Content.ReadAsStreamAsync();
-            KrakenEnvelope<Dictionary<string, KrakenTickerEntry>>? krakenData = await System.Text.Json.JsonSerializer.DeserializeAsync<
-                KrakenEnvelope<Dictionary<string, KrakenTickerEntry>>
-            >(stream);
-
-            _m_App._krakenData = krakenData;
+            _m_App._krakenData = krakenData.Result;
 
             var all = await CryptoComClient.GetTickersAsync(_conf);
 

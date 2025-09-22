@@ -25,7 +25,7 @@ namespace GooseGooseGo_Net.ef
             _dbCon = dbCon;
         }
 
-        public string doAPIQuery()
+        public async Task<string> doAPIQuery()
         {
             var confSection = _conf.GetSection("CMC_API");
             var API_SANDBOX_URL = confSection["CMC_API_SANDBOX_URL"]!;
@@ -41,10 +41,15 @@ namespace GooseGooseGo_Net.ef
             var URL = new UriBuilder($"{API_URL}/v1/cryptocurrency/map");
             //URL.Query = queryString.ToString();
 
-            var client = new WebClient();
-            client.Headers.Add("X-CMC_PRO_API_KEY", API_KEY);
-            client.Headers.Add("Accepts", "application/json");
-            return client.DownloadString(URL.ToString());
+            var request = new HttpRequestMessage(HttpMethod.Get, URL.ToString());
+            request.Headers.Add("X-CMC_PRO_API_KEY", API_KEY);
+            request.Headers.Add("Accept", "application/json");
+
+            var client = new HttpClient();
+            var response = await client.SendAsync(request);
+            response.EnsureSuccessStatusCode();
+            string result = await response.Content.ReadAsStringAsync();
+            return result;
         }
     }
 }

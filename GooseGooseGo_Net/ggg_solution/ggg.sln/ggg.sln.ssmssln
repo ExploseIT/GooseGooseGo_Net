@@ -7,14 +7,17 @@ Project("{4F2E2C19-372F-40D8-9FA7-9D2138C6997A}") = "ggg_sql_01", "ggg_sql_01\gg
 EndProject
 Project("{4F2E2C19-372F-40D8-9FA7-9D2138C6997A}") = "ggg_create", "ggg_create\ggg_create.ssmssqlproj", "{FA400274-8AD7-458A-8BD5-55E8E5015D43}"
 EndProject
+Project("{4F2E2C19-372F-40D8-9FA7-9D2138C6997A}") = "ggg_bulk", "ggg_bulk\ggg_bulk.ssmssqlproj", "{FF1BBDEB-3466-4432-B6C0-F6F6303ADCFC}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Default|Default = Default|Default
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{71F23032-9E66-4791-871D-B8CBDEF94E85}.Default|Default.ActiveCfg = Default
 		{688F245E-6DB2-42B6-ACD0-0FD07979CBE2}.Default|Default.ActiveCfg = Default
 		{FA400274-8AD7-458A-8BD5-55E8E5015D43}.Default|Default.ActiveCfg = Default
+		{65F0292F-75A6-4D4D-A597-6FF94DCCDC94}.Default|Default.ActiveCfg = Default
+		{FF1BBDEB-3466-4432-B6C0-F6F6303ADCFC}.Default|Default.ActiveCfg = Default
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

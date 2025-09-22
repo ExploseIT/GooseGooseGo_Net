@@ -9,8 +9,9 @@ select top 5 * from tblKrakenAsset order by kaRetrievedAt desc
 select top 200 * from tblKrakenAssetInfo order by kaiDT desc
 
 */
+select * from tblSettings
 
---select * from tblKrakenAsset where kaPair='MUSD' and kaIndex=(select top 1 kaiId from tblKrakenAssetInfo order by kaiDT desc)
+select * from tblKrakenAsset where kaPair='MUSD' and kaIndex=(select top 1 kaiId from tblKrakenAssetInfo order by kaiDT desc)
 exec spAssetWatchList
 exec spKrakenRollingPercentSwing 0.010, 5, 'minute',0
 exec spKrakenRollingPercentSwing 0.010, 5, 'minute',1

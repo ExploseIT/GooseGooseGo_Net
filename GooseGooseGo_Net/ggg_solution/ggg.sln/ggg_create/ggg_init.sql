@@ -9,11 +9,15 @@ GO
 use ggg_db
 go
 
+if not exists (select * from sys.columns where name='setValue' and OBJECT_NAME(object_id)='tblSettings' and max_length=4000)
+Drop TABLE [dbo].[tblSettings]
+go
+
 if not exists (select * from sys.tables where name='tblSettings')
 CREATE TABLE [dbo].[tblSettings](
 	[setId] [int] IDENTITY(1,1) NOT NULL,
 	[setName] [nvarchar](100) NOT NULL,
-	[setValue] [nvarchar](500) NOT NULL,
+	[setValue] [nvarchar](2000) NOT NULL,
 	[setDescription] [nvarchar](500) NOT NULL,
  CONSTRAINT [PK_tblSettings] PRIMARY KEY CLUSTERED 
 (
@@ -548,3 +552,55 @@ UPDATE [dbo].[tblSettings]
 
  end
 GO
+
+if exists (select * from sys.procedures where name='spSettingsInsertByName')
+Drop PROCEDURE [dbo].[spSettingsInsertByName]
+Go
+-- =============================================
+-- Author:		Tony Stoddart
+-- Create date: 22/009/2025
+-- Description:	Insert settings value
+-- =============================================
+Create PROCEDURE [dbo].[spSettingsInsertByName]
+	@setName nvarchar(100)
+	,@setValue nvarchar(2000)
+	,@setDescription nvarchar(500)
+	As
+	begin
+	if not exists (select * from tblSettings where setname = @setName)
+	
+INSERT INTO [dbo].[tblSettings]
+           ([setName]
+           ,[setValue]
+           ,[setDescription])
+     VALUES
+           (@setName
+           ,@setValue
+           ,@setDescription
+		   )
+
+
+ select top 1 * from vwSettings where setName = @setName
+ order by setid asc
+
+ end
+Go
+
+if exists (select * from sys.procedures where name='spSettingsReadByName')
+Drop PROCEDURE [dbo].[spSettingsReadByName]
+go
+-- =============================================
+-- Author:		Tony Stoddart
+-- Create date: 22/009/2025
+-- Description:	Read by name (the first by id)
+-- =============================================
+Create PROCEDURE [dbo].[spSettingsReadByName]
+	@setName nvarchar(100)
+	As
+	begin
+ select top 1 * from vwSettings where setName = @setName
+ order by setid asc
+
+ end
+ go
+

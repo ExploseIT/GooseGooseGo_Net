@@ -15,7 +15,6 @@ builder.Logging.AddConsole();
 builder.Configuration.GetSection("CookieAuth").Bind(cookieAuthOptions);
 builder.Services.AddDbContext<dbContext>(options => options.UseSqlServer(connectionString));
 builder.Services.AddSingleton<AssetDataService>();
-//builder.Services.AddHostedService<AssetDataBackgroundService>();
 builder.Services.AddAuthorization();
 builder.Services.AddControllersWithViews(); // <-- Use this for MVC views
 // builder.Services.AddRazorPages(); // <-- Add if you use Razor Pages
