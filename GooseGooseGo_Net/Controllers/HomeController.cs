@@ -34,19 +34,7 @@ namespace GooseGooseGo_Net.Controllers
 
             var _e_cmcap = new ent_cmcap(_conf, _dbCon);
             var _e_kraken = new ent_kraken(_conf, _dbCon, _logger);
-
-            //var apiDetailsEncrypted = _e_kraken.doApiDetailsEncrypt();
-            
-            Dictionary<int, List<cKrakenPercentageSwing>> lkps = new Dictionary<int, List<cKrakenPercentageSwing>>();
-
-            var p_kps = new cKrakenPercentageSwingParms
-            {
-                kapsMinSwing = 0.010M,
-                kapsPeriodValue = 5,
-                kapsPeriodUnit = "minute",
-                kapsPeriodOffset = 0
-            };
-
+        
 
             string json_cmc = await _e_cmcap.doAPIQuery();
 
@@ -58,25 +46,6 @@ namespace GooseGooseGo_Net.Controllers
 
             _m_App._cryptocomData = all;
 
-            /*
-            var respCrypto = await CryptoComClient.Request(
-                methodName: "public/get-ticker",
-                @params: new Dictionary<string, object>(),
-                conf: _conf
-            );
-
-            var json = await respCrypto.Content.ReadAsStringAsync();
-            {
-                try
-                {
-                    _m_App._cryptocomData = System.Text.Json.JsonSerializer.Deserialize<CryptoComTickerEnvelope>(json);
-                }
-                catch (Exception ex)
-                {
-                    exc = ex;
-                }
-            }
-            */
 
             return View(_m_App);
         }

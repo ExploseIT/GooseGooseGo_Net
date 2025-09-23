@@ -39,8 +39,12 @@
 }
 <table id="tab_kps">
     <thead>
-        <td>Pair</td>
-        <td>% change</td>
+         <tr>
+            <th>Pair</th>
+            <th>Price</th>
+            <th>% change</th>
+        </tr>
+    </thead>
     </thead>
     <tbody id="tb_kps">
 
@@ -90,8 +94,10 @@
                     let kp = l_kps[i];
                     let tr = $("<tr></tr>");
                     let td_pair = $("<td></td>").text(kp.kapsPair);
+                    let td_price = $("<td></td>").text(kp.kapsEndTrade+ " USD");
                     let td_change = $("<td></td>").text((kp.kapsTradeDiffPercent).toFixed(2) + "%");
                     tr.append(td_pair);
+                    tr.append(td_price);
                     tr.append(td_change);
                     $("#tb_kps").append(tr);
                 }

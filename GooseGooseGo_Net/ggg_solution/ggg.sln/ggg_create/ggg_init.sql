@@ -2,6 +2,10 @@
 USE master
 GO
 
+/*
+Drop DATABASE [ggg_db]
+GO
+*/
 if not exists (select * from sys.databases where name='ggg_db')
 CREATE DATABASE [ggg_db]
 GO
@@ -9,7 +13,7 @@ GO
 use ggg_db
 go
 
-if not exists (select * from sys.columns where name='setValue' and OBJECT_NAME(object_id)='tblSettings' and max_length=4000)
+if not exists (select * from sys.tables where name='tblSettings') and not exists (select * from sys.columns where name='setValue' and OBJECT_NAME(object_id)='tblSettings' and max_length=4000)
 Drop TABLE [dbo].[tblSettings]
 go
 
@@ -159,6 +163,10 @@ CREATE TABLE tblKrakenAsset (
 );
 
 end
+go
+
+if not exists (select * from sys.tables where name='tblKrakenAsset' or name='tblKrakenAssetInfo') 
+exec spKrakenRestart
 go
 
 IF EXISTS (SELECT * FROM sys.procedures WHERE name = 'spKrakenRollingPercentSwing')

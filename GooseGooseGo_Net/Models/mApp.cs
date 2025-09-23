@@ -63,7 +63,8 @@ namespace GooseGooseGo_Net.Models
                 }
                 else
                 {
-                    mUrl = "https://" + request.Host + request.PathBase;
+                    //mUrl = "https://" + request.Host + request.PathBase;
+                    mUrl = "http://" + request.Host + request.PathBase;
                 }
 
                 //mUrl = request.Scheme + "://" + request.Host + request.PathBase;
