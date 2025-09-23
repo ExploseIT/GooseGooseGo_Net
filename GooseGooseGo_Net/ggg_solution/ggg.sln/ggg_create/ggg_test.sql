@@ -10,12 +10,15 @@ select top 200 * from tblKrakenAssetInfo order by kaiDT desc
 
 */
 select * from tblSettings
+select 
+(select kaLastTrade from tblKrakenAsset where kaPair='MUSD' and kaIndex=(select top 1 kaiId from tblKrakenAssetInfo order by kaiDT desc))
+, (select COUNT (*) from tblKrakenAssetInfo) as [Row Count]
 
-select * from tblKrakenAsset where kaPair='MUSD' and kaIndex=(select top 1 kaiId from tblKrakenAssetInfo order by kaiDT desc)
+
 exec spAssetWatchList
-exec spKrakenRollingPercentSwing 0.010, 5, 'minute',0
-exec spKrakenRollingPercentSwing 0.010, 5, 'minute',1
-exec spKrakenRollingPercentSwing 0.010, 5, 'minute',2
+exec spKrakenRollingPercentSwing 0.010, 20, 'minute',10,0
+exec spKrakenRollingPercentSwing 0.010, 20, 'minute',10,1
+exec spKrakenRollingPercentSwing 0.010, 20, 'minute',10,2
 
 
 /*
@@ -24,7 +27,7 @@ select top 100 * from tblKrakenAsset where kaPair = 'MUSD'  order by kaId desc
 
 
 
-
+-- exec spKrakenRestart
 select top 1 kaiDT from tblKrakenAssetInfo order by kaiDT desc
 select COUNT (*) from tblKrakenAssetInfo
 exec spKrakenRollingPercentSwingTest 0.010, 5, 'minute',0
@@ -50,7 +53,7 @@ EXEC sp_helpindex 'tblKrakenAssetInfo';
 EXEC sp_who2;
 
 */
--- exec spKrakenRestart
+
 
 -- exec spKrakenAssetInfoNextId
 

@@ -37,7 +37,7 @@ if not exists (select * from sys.tables where name='tblAssetSource')
 CREATE TABLE [dbo].[tblAssetSource](
 	[assId] [nvarchar](20) NOT NULL,
 	[assSource] [nvarchar](300) NOT NULL,
-	[assDTAdded] [nchar](10) NOT NULL,
+	[assDTAdded] datetime NOT NULL,
 	[assEnabled] [bit] NOT NULL,
  CONSTRAINT [PK_tblAssetSource] PRIMARY KEY CLUSTERED 
 (
@@ -144,14 +144,14 @@ CREATE TABLE tblKrakenAsset (
     kaId INT IDENTITY(1,1) PRIMARY KEY,
     kaIndex INT NOT NULL, -- references kaiId in tblKrakenAssetInfo
     kaPair NVARCHAR(32) NOT NULL,
-    kaLastTrade DECIMAL(38,18) NOT NULL,
-    kaOpen DECIMAL(38,18) NULL,
-    kaBid DECIMAL(38,18) NULL,
-    kaAsk DECIMAL(38,18) NULL,
-    kaHigh24h DECIMAL(38,18) NULL,
-    kaLow24h DECIMAL(38,18) NULL,
+    kaLastTrade DECIMAL(18,4) NOT NULL,
+    kaOpen DECIMAL(18,4) NULL,
+    kaBid DECIMAL(18,4) NULL,
+    kaAsk DECIMAL(18,4) NULL,
+    kaHigh24h DECIMAL(18,4) NULL,
+    kaLow24h DECIMAL(18,4) NULL,
     kaVolume24h NVARCHAR(64) NULL,
-    kaRetrievedAt DATETIME2 NOT NULL,
+    kaRetrievedAt DATETIME NOT NULL,
     CONSTRAINT FK_tblKrakenAsset_kaIndex FOREIGN KEY (kaIndex)
         REFERENCES tblKrakenAssetInfo(kaiId)
         ON DELETE CASCADE
@@ -169,6 +169,7 @@ CREATE PROCEDURE spKrakenRollingPercentSwing
     @kapsMinSwing DECIMAL(18, 4),
     @kapsPeriodValue INT,
     @kapsPeriodUnit NVARCHAR(10),
+	@kapsRowCount int,
     @kapsPeriodOffset INT
 AS
 BEGIN
@@ -210,7 +211,7 @@ BEGIN
     windEnd AS (
         SELECT * FROM tblKrakenAsset WHERE kaIndex = @indEnd
     )
-    SELECT 
+    SELECT TOP (@kapsRowCount)
         wsStart.kaPair AS kapsPair,
         CAST(wsStart.kaLastTrade AS DECIMAL(18, 4)) AS kapsStartTrade,
         CAST(wsEnd.kaLastTrade AS DECIMAL(18, 4)) AS kapsEndTrade,
@@ -223,8 +224,8 @@ BEGIN
         CAST(ABS(wsEnd.kaLastTrade - wsStart.kaLastTrade) AS DECIMAL(18, 4)) AS kapsTradeDiffAbs,
         wsStart.kaVolume24h AS kapsStartVolume,
         wsEnd.kaVolume24h AS kapsEndVolume,
-        wsStart.kaRetrievedAt AS kapsStartRetrievedAt,
-        wsEnd.kaRetrievedAt AS kapsEndRetrievedAt
+        cast(wsStart.kaRetrievedAt as datetime) AS kapsStartRetrievedAt,
+        cast(wsEnd.kaRetrievedAt as datetime) AS kapsEndRetrievedAt
     FROM windStart wsStart
     INNER JOIN windEnd wsEnd ON wsStart.kaPair = wsEnd.kaPair
     -- Filter by minimum swing if computable
@@ -349,14 +350,14 @@ Create Procedure spKrakenUpdateById
            @kaId int
 		   ,@kaIndex int
 		   ,@kaPair nvarchar(32)
-           ,@kaLastTrade decimal(38,18)
-           ,@kaOpen decimal(38,18)
-           ,@kaBid decimal(38,18)
-           ,@kaAsk decimal(38,18)
-           ,@kaHigh24h decimal(38,18)
-           ,@kaLow24h decimal(38,18)
+           ,@kaLastTrade decimal(18,4)
+           ,@kaOpen decimal(18,4)
+           ,@kaBid decimal(18,4)
+           ,@kaAsk decimal(18,4)
+           ,@kaHigh24h decimal(18,4)
+           ,@kaLow24h decimal(18,4)
            ,@kaVolume24h nvarchar(64)
-           ,@kaRetrievedAt datetime2(7)
+           ,@kaRetrievedAt datetime
 as
 begin
 if not exists (select * from tblKrakenAsset where kaId = @kaId)

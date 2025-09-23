@@ -1,5 +1,4 @@
-﻿
-@using GooseGooseGo_Net
+﻿@using GooseGooseGo_Net
 @using GooseGooseGo_Net.Services
 @using GooseGooseGo_Net.ef
 
@@ -7,7 +6,7 @@
     ViewData["Title"] = "Home Page";
     mApp _m_App = @Model;
 
-    List <KeyValuePair<string, KrakenTickerEntry>>? krakenList = _m_App._krakenData!.Result?.ToList();
+    List<KeyValuePair<string, KrakenTickerEntry>>? krakenList = _m_App._krakenData!.Result?.ToList();
     CryptoComTickerResult cryptocomList = _m_App._cryptocomData!.Result;
 
     <h3>
@@ -36,5 +35,68 @@
             </div>
         }
     }
+
 }
+<table id="tab_kps">
+    <thead>
+        <td>Pair</td>
+        <td>% change</td>
+    </thead>
+    <tbody id="tb_kps">
+
+    </tbody>
+</table>
+
+<script>
+
+    $(document).ready(function () {
+        setUrlBase("@Html.Raw(_m_App.mUrl)");
+        doInit();
+        pollDataRead(); // Start polling
+        
+        console.log("Home/Index.cshtml loaded");
+        });
+
+    function pollDataRead() {
+        doDataRead();
+        setTimeout(pollDataRead, 10000); // Schedule next poll after 10s
+    }
+
+        function doInit() {
+            // Initialization code here
+            doDataRead();
+        }
+
+
+    function doDataRead() {
+        let p_kps = {
+            kapsMinSwing: 0.010,
+            kapsPeriodValue:  5,
+            kapsPeriodUnit:  "minute",
+            kapsRowCount: 10,
+            kapsPeriodOffset:  0
+            };
+        
+        doApiPost(doDataReadContinue, p_kps, "api/doKrakenPercentageSwingList");
+    }
+
+    function doDataReadContinue(ret) {
+            // Continuation code here
+
+            $("#tb_kps").empty();
+            let l_kps = ret.data.apiData;
+            if (l_kps != null) {
+                for (let i = 0; i < l_kps.length; i++) {
+                    let kp = l_kps[i];
+                    let tr = $("<tr></tr>");
+                    let td_pair = $("<td></td>").text(kp.kapsPair);
+                    let td_change = $("<td></td>").text((kp.kapsTradeDiffPercent).toFixed(2) + "%");
+                    tr.append(td_pair);
+                    tr.append(td_change);
+                    $("#tb_kps").append(tr);
+                }
+            }
+    }
+</script>
+
 

@@ -25,7 +25,7 @@ using System.Web;
 
 namespace GooseGooseGo_Net.Models
 {
-    public class mApp
+    public class mApp : mAppExt
     {
         public bool bIsLocal { get; set; } = false;
         public mApp(HttpContext hc, HttpRequest request, Microsoft.AspNetCore.Routing.RouteData rd, dbContext dbCon, IConfiguration conf, IWebHostEnvironment env, ILogger _logger)
@@ -332,8 +332,6 @@ namespace GooseGooseGo_Net.Models
 
         //** Admins
         public c_setting? _c_setting { get; set; } = null;
-        public KrakenEnvelope<Dictionary<string, KrakenTickerEntry>>? _krakenData { get; set; } = null;
-        public CryptoComTickerEnvelope? _cryptocomData { get; set; } = null;
         public cPageData? _cPageData { get; set; } = null;
         public List<cPageData>? _cPageDatas { get; set; } = null;
 

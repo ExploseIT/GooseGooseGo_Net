@@ -32,6 +32,17 @@ namespace GooseGooseGo_Net.ef
         {
         }
 
+        public ent_kraken(IConfiguration conf, dbContext dbCon, ILogger logger)
+        {
+            this._conf = conf;
+            this.dbCon = dbCon;
+            this._logger = logger;
+
+            _encryptionKey = conf.GetSection("Encryption").GetValue<string>("EncryptionKey")!;
+            _apiDetails = doApiDetailsDecrypt();
+        }
+
+
         public string doApiDetailsEncrypt()
         {
             string ret = "";
@@ -69,16 +80,6 @@ namespace GooseGooseGo_Net.ef
             }
 
             return ret;
-        }
-
-        public ent_kraken(IConfiguration conf, dbContext dbCon, ILogger logger)
-        {
-            this._conf = conf;
-            this.dbCon = dbCon;
-            this._logger = logger;
-
-            _encryptionKey = conf.GetSection("Encryption").GetValue<string>("EncryptionKey")!;
-            _apiDetails = doApiDetailsDecrypt();
         }
 
         public async Task<KrakenEnvelope<Dictionary<string, KrakenTickerEntry>>?> doApi_TickerListAsync()
@@ -186,26 +187,6 @@ namespace GooseGooseGo_Net.ef
         private string BuildQueryString(Dictionary<string, string> query)
             => string.Join("&", query.Select(kv =>
                 $"{Uri.EscapeDataString(kv.Key)}={Uri.EscapeDataString(kv.Value)}"));
-        /*
-        public bool doAPI_AddOrder()
-        {
-            curl - L 'https://api.kraken.com/0/private/AddOrder' \
--H 'Content-Type: application/json' \
--H 'Accept: application/json' \
--H 'API-Key: <API-Key>' \
--H 'API-Sign: <API-Sign>' \
--d '{
-  "nonce": 163245617,
-  "ordertype": "limit",
-  "type": "buy",
-  "volume": "1.25",
-  "pair": "XBTUSD",
-  "price": "27500",
-  "cl_ord_id": "6d1b345e-2821-40e2-ad83-4ecb18a06876"
-}'
-        }
-        */
-
 
         public cKrakenAssetInfo doKrakenGetNextId()
         {
@@ -244,7 +225,7 @@ namespace GooseGooseGo_Net.ef
                 , new SqlParameter("@kaHigh24h", SqlDbType.Decimal, 0, ParameterDirection.Input, true, 0, 0, "", DataRowVersion.Current, p.kaHigh24h)
                 , new SqlParameter("@kaLow24h", SqlDbType.Decimal, 0, ParameterDirection.Input, true, 0, 0, "", DataRowVersion.Current, p.kaLow24h)
                 , new SqlParameter("@kaVolume24h", SqlDbType.NVarChar, 0, ParameterDirection.Input, true, 0, 0, "", DataRowVersion.Current, p.kaVolume24h)
-                , new SqlParameter("@kaRetrievedAt", SqlDbType.DateTime, 0, ParameterDirection.Input, true, 0, 0, "", DataRowVersion.Current, p. kaRetrievedAt.ToLocalTime())
+                , new SqlParameter("@kaRetrievedAt", SqlDbType.DateTime, 0, ParameterDirection.Input, true, 0, 0, "", DataRowVersion.Current, p.kaRetrievedAtSanitised())
 
             };
 
@@ -264,9 +245,10 @@ namespace GooseGooseGo_Net.ef
 
 
 
-        public List<cKrakenPercentageSwing>? doKrakenPercentageSwingList(cKrakenPercentageSwingParms p)
+        public ApiResponse<List<cKrakenPercentageSwing>?> doKrakenPercentageSwingList(cKrakenPercentageSwingParms p)
         {
-            List<cKrakenPercentageSwing> ret = new List<cKrakenPercentageSwing>();
+
+            ApiResponse<List<cKrakenPercentageSwing>?> ret = new ApiResponse<List<cKrakenPercentageSwing>?>();
 
             try
             {
@@ -274,19 +256,28 @@ namespace GooseGooseGo_Net.ef
                 new SqlParameter("@kapsMinSwing", SqlDbType.Decimal, 0, ParameterDirection.Input, true, 0, 0, "", DataRowVersion.Current, p.kapsMinSwing)
                 , new SqlParameter("@kapsPeriodValue", SqlDbType.Int, 0, ParameterDirection.Input, true, 0, 0, "", DataRowVersion.Current, p.kapsPeriodValue)
                 , new SqlParameter("@kapsPeriodUnit", SqlDbType.NVarChar, 0, ParameterDirection.Input, true, 0, 0, "", DataRowVersion.Current, p.kapsPeriodUnit)
-                , new SqlParameter("@kapsPeriodOffset", SqlDbType.Int, 0, ParameterDirection.Input, true, 0, 0, "", DataRowVersion.Current, p.kapsPeriodOffset)             
+                , new SqlParameter("@kapsRowCount", SqlDbType.Int, 0, ParameterDirection.Input, true, 0, 0, "", DataRowVersion.Current, p.kapsRowCount)
+                , new SqlParameter("@kapsPeriodOffset", SqlDbType.Int, 0, ParameterDirection.Input, true, 0, 0, "", DataRowVersion.Current, p.kapsPeriodOffset)
 
             };
 
-                string sp = "spKrakenRollingPercentSwing @kapsMinSwing, @kapsPeriodValue, @kapsPeriodUnit, @kapsPeriodOffset";
+                string sp = "spKrakenRollingPercentSwing @kapsMinSwing, @kapsPeriodValue, @kapsPeriodUnit, @kapsRowCount, @kapsPeriodOffset";
 
                 var retSP = this.dbCon?.lKrakenPercentageSwing.FromSqlRaw(sp, lParams).AsEnumerable();
 
-                ret = retSP?.ToList()!;
+                if (retSP != null)
+                {
+                    ret.apiData = retSP?.ToList()!;
+                }
+                else
+                {
+                    ret.apiSuccess = false;
+                    ret.apiMessage = "No data returned from stored procedure.";
+                }
             }
             catch (Exception ex)
             {
-                exc = ex;
+                ret.apiMessage = ex.Message + (ex.InnerException != null ? " : " + ex.InnerException.Message : "");
             }
 
             return ret;
@@ -309,26 +300,36 @@ namespace GooseGooseGo_Net.ef
         public int kaIndex { get; set; }
         public string kaPair { get; set; } = "";
 
-        [Precision(18, 8)]
+        [Precision(18, 4)]
         public decimal kaLastTrade { get; set; }
 
-        [Precision(18, 8)]
+        [Precision(18, 4)]
         public decimal? kaOpen { get; set; }
 
-        [Precision(18, 8)]
+        [Precision(18, 4)]
         public decimal? kaBid { get; set; }
 
-        [Precision(18, 8)]
+        [Precision(18, 4)]
         public decimal? kaAsk { get; set; }
 
-        [Precision(18, 8)]
+        [Precision(18, 4)]
         public decimal? kaHigh24h { get; set; }
 
-        [Precision(18, 8)]
+        [Precision(18, 4)]
         public decimal? kaLow24h { get; set; }
 
         public string? kaVolume24h { get; set; }
         public DateTime kaRetrievedAt { get; set; }
+
+
+        public DateTime kaRetrievedAtSanitised()
+        {
+            DateTime ret = DateTime.Now;
+
+            var dt = this.kaRetrievedAt.ToLocalTime();
+            ret = new DateTime(dt.Year, dt.Month, dt.Day, dt.Hour, dt.Minute, dt.Second);
+            return ret;
+        }
     }
 
     public class cKrakenPercentageSwingParms
@@ -336,6 +337,7 @@ namespace GooseGooseGo_Net.ef
         public decimal kapsMinSwing { get; set; } = 0.0M;
         public int kapsPeriodValue { get; set; } = 0;
         public string kapsPeriodUnit { get; set; } = "";
+        public int kapsRowCount { get; set; } = 5;
         public int kapsPeriodOffset { get; set; } = 0;
     }
 

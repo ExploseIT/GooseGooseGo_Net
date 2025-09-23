@@ -1,18 +1,24 @@
 ﻿<!DOCTYPE html>
 <html lang="en">
+    @{
+    ViewData["Title"] = "Home Page";
+    mApp _m_App = @Model;
+    }
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>@ViewData["Title"] - GooseGooseGo_Net</title>
     <link rel="stylesheet" href="~/dist/bootstrap/css/bootstrap.min.css" />
     <link rel="stylesheet" href="~/dist/fontawesome-free/css/all.css" />
-    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/site/site.css" asp-append-version="true" />
 
 </head>
 <body>
     <script src="~/dist/jquery/jquery.min.js"></script>
     <script src="~/dist/bootstrap/js/bootstrap.bundle.min.js"></script>
     <script src="~/site/site.js" asp-append-version="true"></script>
+    
+    <input type="hidden" id="hdUrlBase" value="@_m_App.mUrl" />
 
     <header>
         <nav class="navbar navbar-expand-sm navbar-toggleable-sm navbar-light bg-white border-bottom box-shadow mb-3">
@@ -49,9 +55,5 @@
             &copy; 2025 - GooseGooseGo_Net - <a asp-area="" asp-controller="Home" asp-action="Privacy">Privacy</a>
         </div>
     </footer>
-    <script src="~/lib/jquery/dist/jquery.min.js"></script>
-    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="~/js/site.js" asp-append-version="true"></script>
-    @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>

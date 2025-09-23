@@ -36,6 +36,8 @@ namespace GooseGooseGo_Net.Controllers
             var _e_kraken = new ent_kraken(_conf, _dbCon, _logger);
 
             //var apiDetailsEncrypted = _e_kraken.doApiDetailsEncrypt();
+            
+            Dictionary<int, List<cKrakenPercentageSwing>> lkps = new Dictionary<int, List<cKrakenPercentageSwing>>();
 
             var p_kps = new cKrakenPercentageSwingParms
             {
@@ -45,7 +47,6 @@ namespace GooseGooseGo_Net.Controllers
                 kapsPeriodOffset = 0
             };
 
-            var clkps = _e_kraken.doKrakenPercentageSwingList(p_kps);
 
             string json_cmc = await _e_cmcap.doAPIQuery();
 
