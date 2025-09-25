@@ -14,8 +14,13 @@ select
 (select kaLastTrade from tblKrakenAsset where kaPair='MUSD' and kaIndex=(select top 1 kaiId from tblKrakenAssetInfo order by kaiDT desc))
 , (select COUNT (*) from tblKrakenAssetInfo) as [Row Count]
 
+select top 5 * from tblKrakenAssetInfo order by kaiDT desc
 
+exec spKrakenInfoList
 exec spAssetWatchList
+
+
+
 exec spKrakenRollingPercentSwing 0.010, 20, 'minute',10,0
 exec spKrakenRollingPercentSwing 0.010, 20, 'minute',10,1
 exec spKrakenRollingPercentSwing 0.010, 20, 'minute',10,2

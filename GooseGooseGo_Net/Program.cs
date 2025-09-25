@@ -17,6 +17,8 @@ builder.Services.AddDbContext<dbContext>(options => options.UseSqlServer(connect
 builder.Services.AddSingleton<AssetDataService>();
 builder.Services.AddAuthorization();
 builder.Services.AddControllersWithViews(); // <-- Use this for MVC views
+builder.Services.AddSingleton<ent_kraken>();
+builder.Services.AddHttpClient();
 // builder.Services.AddRazorPages(); // <-- Add if you use Razor Pages
 
 var app = builder.Build();

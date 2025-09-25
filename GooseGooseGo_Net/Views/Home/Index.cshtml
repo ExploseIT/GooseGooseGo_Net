@@ -1,42 +1,31 @@
-﻿@using GooseGooseGo_Net
+﻿
+
+@using GooseGooseGo_Net
 @using GooseGooseGo_Net.Services
 @using GooseGooseGo_Net.ef
 
-@{
+    @{
     ViewData["Title"] = "Home Page";
     mApp _m_App = @Model;
-
-    List<KeyValuePair<string, KrakenTickerEntry>>? krakenList = _m_App._krakenData!.Result?.ToList();
-    CryptoComTickerResult cryptocomList = _m_App._cryptocomData!.Result;
-
-    <h3>
-        Number of Kraken items: @(krakenList?.Count ?? 0)
-    </h3>
-    <h3>
-        Number of Crypto.com items: @(cryptocomList.Data.Count)
-    </h3>
-    <h4>Kraken assets</h4>
-    foreach (var item in krakenList!)
-    {
-        if (String.Compare(item.Key, "CROUSD", true) == 0 || String.Compare(item.Key, "KSMUSD", true) == 0)
-        {
-            <div>
-                <strong>@item.Key:</strong> @item.Value.LastTrade!.First()
-            </div>
-        }
-    }
-    <h4>Crypto.com assets</h4>
-    foreach (var item in cryptocomList.Data!)
-    {
-        if (String.Compare(item.Instrument, "CRO_USD", true) == 0 || String.Compare(item.Instrument, "KSM_USD", true) == 0)
-        {
-            <div>
-                <strong>@item.Instrument:</strong> @item.Last
-            </div>
-        }
     }
 
-}
+<div class="container text-center">
+  <div class="row">
+    <div class="col text-start">
+      <b>Kraken USD asset count <span class="text-primary" id="span_kraken_item_count"></span></b>
+    </div>
+    <div class="col">
+      <b>Date / time <span class="text-primary" id="span_kraken_date_time"></span></b>
+    </div>
+    <div class="col">
+    &nbsp;
+    </div>
+        <div class="col">
+            &nbsp;
+        </div>
+  </div>
+</div>
+
 <table id="tab_kps">
     <thead>
          <tr>
@@ -45,7 +34,7 @@
             <th>% change</th>
         </tr>
     </thead>
-    </thead>
+
     <tbody id="tb_kps">
 
     </tbody>
@@ -77,18 +66,30 @@
             kapsMinSwing: 0.010,
             kapsPeriodValue:  5,
             kapsPeriodUnit:  "minute",
-            kapsRowCount: 10,
+            kapsRowCount: 20,
             kapsPeriodOffset:  0
             };
         
-        doApiPost(doDataReadContinue, p_kps, "api/doKrakenPercentageSwingList");
+        doApiPost(doDataReadContinueSwingList, p_kps, "api/doKrakenPercentageSwingList");
     }
 
-    function doDataReadContinue(ret) {
-            // Continuation code here
+    var l_kps = null;
+    var l_k_info = null;
 
+    function doDataReadContinueSwingList(ret) {
+        l_kps = ret.data.apiData;
+        doApiPost(doDataReadContinueInfoList, null, "api/doKrakenInfoList");
+    }
+
+    function doDataReadContinueInfoList(ret) {
+            // Continuation code here
+            let l_k_info = ret.data.apiData;
+            $("#span_kraken_item_count").text(l_k_info.length);
+            let dt = l_k_info[0].kaRetrievedAt;
+            let dtStr = dt.replace('T', ' ');
+            $("#span_kraken_date_time").text(dtStr);
             $("#tb_kps").empty();
-            let l_kps = ret.data.apiData;
+            
             if (l_kps != null) {
                 for (let i = 0; i < l_kps.length; i++) {
                     let kp = l_kps[i];

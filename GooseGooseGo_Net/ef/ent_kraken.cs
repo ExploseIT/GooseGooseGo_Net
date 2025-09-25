@@ -1,10 +1,6 @@
-
-
-using Azure;
-using Azure.Core;
-using GooseGooseGo_Net.ef;
 using GooseGooseGo_Net.Models;
-using GooseGooseGo_Net.Services;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using System.ComponentModel.DataAnnotations;
@@ -13,47 +9,45 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using static System.Net.WebRequestMethods;
+using System.Net.Http;
+using System.Threading.Tasks;
 
 namespace GooseGooseGo_Net.ef
 {
-    public class ent_kraken
+    /// <summary>
+    /// Singleton-safe Kraken logic. No per-instance mutable state, DI for singleton-safe services.
+    /// Pass dbContext as method argument for DB operations.
+    /// Uses IHttpClientFactory for HTTP calls.
+    /// </summary>
+    public class ent_kraken : cIsDbNull
     {
+        private readonly IConfiguration _conf;
+        private readonly ILogger<ent_kraken> _logger;
+        private readonly IHttpClientFactory _httpClientFactory;
+        private readonly string _encryptionKey;
 
-        private dbContext? dbCon { get; } = null;
-        private IConfiguration _conf { get; } = null!;
-        private ILogger _logger { get; } = null!;
-
-        private cKrakenApiDetails? _apiDetails = null!;
-        private string _encryptionKey = null!;
-        Exception? exc = null!;
-
-        public ent_kraken()
+        public ent_kraken(
+            IConfiguration conf,
+            ILogger<ent_kraken> logger,
+            IHttpClientFactory httpClientFactory)
         {
+            _conf = conf;
+            _logger = logger;
+            _httpClientFactory = httpClientFactory;
+            _encryptionKey = conf.GetSection("Encryption").GetValue<string>("EncryptionKey") ?? "";
         }
 
-        public ent_kraken(IConfiguration conf, dbContext dbCon, ILogger logger)
-        {
-            this._conf = conf;
-            this.dbCon = dbCon;
-            this._logger = logger;
-
-            _encryptionKey = conf.GetSection("Encryption").GetValue<string>("EncryptionKey")!;
-            _apiDetails = doApiDetailsDecrypt();
-        }
-
-
-        public string doApiDetailsEncrypt()
+        public string doApiDetailsEncrypt(dbContext dbCon)
         {
             string ret = "";
-            var _e_settings = new ent_setting(dbCon!, _logger);
+            var _e_settings = new ent_setting(dbCon, _logger);
             var set_kraken_api = _e_settings.doSettingsReadByName("KRAKEN_API");
             if (set_kraken_api == null)
             {
                 var cs = _conf.GetSection("KRAKEN_API");
-                string _apiUrl = cs.GetValue<string>("KRAKEN_API_URL")!;
-                string _apiKey = cs.GetValue<string>("KRAKEN_KEY")!;
-                string _apiSecret = cs.GetValue<string>("KRAKEN_SECRET")!;
+                string _apiUrl = cs.GetValue<string>("KRAKEN_API_URL") ?? "";
+                string _apiKey = cs.GetValue<string>("KRAKEN_KEY") ?? "";
+                string _apiSecret = cs.GetValue<string>("KRAKEN_SECRET") ?? "";
 
                 var cKrakenApiDetails = new cKrakenApiDetails
                 {
@@ -63,49 +57,54 @@ namespace GooseGooseGo_Net.ef
                 };
                 string json = JsonSerializer.Serialize(cKrakenApiDetails);
                 ret = mEncryption.EncryptString(json, _encryptionKey);
-                _e_settings.doSettingsInsertByName("KRAKEN_API",ret, "Encrypted Kraken API details");
+                _e_settings.doSettingsInsertByName("KRAKEN_API", ret, "Encrypted Kraken API details");
             }
             return ret;
         }
-        public cKrakenApiDetails doApiDetailsDecrypt()
+
+        public cKrakenApiDetails? doApiDetailsDecrypt(dbContext dbCon)
         {
-            cKrakenApiDetails ret = null!;
-            var _e_settings = new ent_setting(dbCon!, _logger);
-            var set_kraken_api = _e_settings.doSettingsReadByName("KRAKEN_API");
-            if (set_kraken_api != null)
-            { 
-                var retEncrypt = _e_settings.doSettingsReadByName("KRAKEN_API");
-                var retJson = mEncryption.DecryptString(retEncrypt!.setValue, _encryptionKey);
-                ret = JsonSerializer.Deserialize<cKrakenApiDetails>(retJson)!;
+            cKrakenApiDetails? ret = null;
+            try
+            {
+                var _e_settings = new ent_setting(dbCon, _logger);
+                var set_kraken_api = _e_settings.doSettingsReadByName("KRAKEN_API");
+                if (set_kraken_api != null)
+                {
+                    var retJson = mEncryption.DecryptString(set_kraken_api.setValue, _encryptionKey);
+                    ret = JsonSerializer.Deserialize<cKrakenApiDetails>(retJson)!;
+                }
             }
-
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error decrypting Kraken API details");
+            }
             return ret;
         }
 
-        public async Task<KrakenEnvelope<Dictionary<string, KrakenTickerEntry>>?> doApi_TickerListAsync()
+        public async Task<KrakenEnvelope<Dictionary<string, KrakenTickerEntry>>?> doApi_TickerListAsync(cKrakenApiDetails apiDetails)
         {
             cKrakenAPIParms p = new cKrakenAPIParms
             {
                 apMethod = "GET",
                 apPath = "/0/public/Ticker"
             };
-            string retJson = await doApi_Base(p);
+            string retJson = await doApi_Base(p, apiDetails);
 
-            var ret = JsonSerializer.Deserialize<KrakenEnvelope<Dictionary<string, KrakenTickerEntry>>>(retJson);
+            var ret = JsonSerializer.Deserialize<KrakenEnvelope<Dictionary<string, KrakenTickerEntry>>?>(retJson);
 
             return ret;
         }
 
-        public async Task<string> doApi_Base(cKrakenAPIParms p)
+        public async Task<string> doApi_Base(cKrakenAPIParms p, cKrakenApiDetails apiDetails)
         {
             string ret = null!;
             Dictionary<string, string>? query = null;
             Dictionary<string, object>? body = null;
-            string environment = _apiDetails.apidet_api_url;
+            string environment = apiDetails.apidet_api_url;
             if (string.IsNullOrWhiteSpace(environment))
                 throw new ArgumentException("Environment (base URL) is required.", nameof(environment));
 
-            // Build URL + query
             var baseUri = environment.TrimEnd('/');
             var url = new StringBuilder(baseUri).Append(p.apPath).ToString();
 
@@ -116,9 +115,8 @@ namespace GooseGooseGo_Net.ef
                 url += "?" + queryStr;
             }
 
-            // Nonce/body handling for private calls
             string nonce = "";
-            if (!string.IsNullOrEmpty(_apiDetails.apidet_key))
+            if (!string.IsNullOrEmpty(apiDetails.apidet_key))
             {
                 body ??= new Dictionary<string, object>(StringComparer.Ordinal);
                 if (!body.TryGetValue("nonce", out _))
@@ -141,149 +139,140 @@ namespace GooseGooseGo_Net.ef
                 request.Content = new StringContent(bodyStr, Encoding.UTF8, "application/json");
             }
 
-            // Headers (auth if provided)
-            if (!string.IsNullOrEmpty(_apiDetails.apidet_key))
+            if (!string.IsNullOrEmpty(apiDetails.apidet_key))
             {
-                request.Headers.Add("API-Key", _apiDetails.apidet_key);
-
-                // Signature over path + sha256(nonce + (queryStr + bodyStr))
-                var sig = GetSignature(_apiDetails.apidet_key, data: queryStr + bodyStr, nonce: nonce, path: p.apPath);
+                request.Headers.Add("API-Key", apiDetails.apidet_key);
+                var sig = GetSignature(apiDetails.apidet_key, data: queryStr + bodyStr, nonce: nonce, path: p.apPath);
                 request.Headers.Add("API-Sign", sig);
             }
 
-            var client = new HttpClient();
+            var client = _httpClientFactory.CreateClient();
             var response = await client.SendAsync(request);
             response.EnsureSuccessStatusCode();
             string result = await response.Content.ReadAsStringAsync();
 
             ret = result;
-
             return ret;
         }
 
         private string GetSignature(string privateKey, string data, string nonce, string path)
         {
-            // message = path + SHA256(nonce + data)
             using var sha256 = SHA256.Create();
             var sha = sha256.ComputeHash(Encoding.UTF8.GetBytes(nonce + data));
-
             var pathBytes = Encoding.UTF8.GetBytes(path);
             var toSign = new byte[pathBytes.Length + sha.Length];
             Buffer.BlockCopy(pathBytes, 0, toSign, 0, pathBytes.Length);
             Buffer.BlockCopy(sha, 0, toSign, pathBytes.Length, sha.Length);
-
             return Sign(privateKey, toSign);
         }
 
         private string Sign(string privateKey, byte[] message)
         {
-            // HMAC-SHA512 with base64-decoded secret, then base64-encode the digest
             using var hmac = new HMACSHA512(Convert.FromBase64String(privateKey));
             var digest = hmac.ComputeHash(message);
             return Convert.ToBase64String(digest);
         }
+
         private string GetNonce() => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString();
-        
+
         private string BuildQueryString(Dictionary<string, string> query)
             => string.Join("&", query.Select(kv =>
                 $"{Uri.EscapeDataString(kv.Key)}={Uri.EscapeDataString(kv.Value)}"));
 
-        public cKrakenAssetInfo doKrakenGetNextId()
+        // --- DB-Related Methods ---
+
+        public cKrakenAssetInfo? doKrakenGetNextId(dbContext dbCon)
         {
-            cKrakenAssetInfo ret = new cKrakenAssetInfo();
             try
             {
                 SqlParameter[] lParams = { };
                 string sp = "spKrakenAssetInfoNextId";
-
-                var retSP = this.dbCon?.lKrakenAssetInfo.FromSqlRaw(sp, lParams).AsEnumerable();
-
-                ret = retSP?.FirstOrDefault()!;
+                var retSP = dbCon.lKrakenAssetInfo.FromSqlRaw(sp, lParams).AsEnumerable();
+                return retSP.FirstOrDefault();
             }
             catch (Exception ex)
             {
-                exc = ex;
+                _logger.LogError(ex, "Error in doKrakenGetNextId");
+                return null;
             }
-
-            return ret;
         }
 
-        public cKraken? doKrakenUpdateById(cKraken p)
+        public cKraken? doKrakenUpdateById(dbContext dbCon, cKraken p)
         {
-            cKraken? ret = null;
-
             try
             {
                 SqlParameter[] lParams = {
-                new SqlParameter("@kaId", SqlDbType.Int, 0, ParameterDirection.Input, true, 0, 0, "", DataRowVersion.Current, p.kaId)
-                , new SqlParameter("@kaIndex", SqlDbType.Int, 0, ParameterDirection.Input, true, 0, 0, "", DataRowVersion.Current, p.kaIndex)
-                , new SqlParameter("@kaPair", SqlDbType.NVarChar, 0, ParameterDirection.Input, true, 0, 0, "", DataRowVersion.Current, p.kaPair)
-                , new SqlParameter("@kaLastTrade", SqlDbType.Decimal, 0, ParameterDirection.Input, true, 0, 0, "", DataRowVersion.Current, p.kaLastTrade)
-                , new SqlParameter("@kaOpen", SqlDbType.Decimal, 0, ParameterDirection.Input, true, 0, 0, "", DataRowVersion.Current, p.kaOpen)
-                , new SqlParameter("@kaBid", SqlDbType.Decimal, 0, ParameterDirection.Input, true, 0, 0, "", DataRowVersion.Current, p.kaBid)
-                , new SqlParameter("@kaAsk", SqlDbType.Decimal, 0, ParameterDirection.Input, true, 0, 0, "", DataRowVersion.Current, p.kaAsk)
-                , new SqlParameter("@kaHigh24h", SqlDbType.Decimal, 0, ParameterDirection.Input, true, 0, 0, "", DataRowVersion.Current, p.kaHigh24h)
-                , new SqlParameter("@kaLow24h", SqlDbType.Decimal, 0, ParameterDirection.Input, true, 0, 0, "", DataRowVersion.Current, p.kaLow24h)
-                , new SqlParameter("@kaVolume24h", SqlDbType.NVarChar, 0, ParameterDirection.Input, true, 0, 0, "", DataRowVersion.Current, p.kaVolume24h)
-                , new SqlParameter("@kaRetrievedAt", SqlDbType.DateTime, 0, ParameterDirection.Input, true, 0, 0, "", DataRowVersion.Current, p.kaRetrievedAtSanitised())
-
-            };
-
+                    new SqlParameter("@kaId", SqlDbType.Int) { Value = p.kaId },
+                    new SqlParameter("@kaIndex", SqlDbType.Int) { Value = p.kaIndex },
+                    new SqlParameter("@kaPair", SqlDbType.NVarChar) { Value = p.kaPair },
+                    new SqlParameter("@kaLastTrade", SqlDbType.Decimal) { Value = p.kaLastTrade },
+                    new SqlParameter("@kaOpen", SqlDbType.Decimal) { Value = p.kaOpen ?? (object)DBNull.Value },
+                    new SqlParameter("@kaBid", SqlDbType.Decimal) { Value = p.kaBid ?? (object)DBNull.Value },
+                    new SqlParameter("@kaAsk", SqlDbType.Decimal) { Value = p.kaAsk ?? (object)DBNull.Value },
+                    new SqlParameter("@kaHigh24h", SqlDbType.Decimal) { Value = p.kaHigh24h ?? (object)DBNull.Value },
+                    new SqlParameter("@kaLow24h", SqlDbType.Decimal) { Value = p.kaLow24h ?? (object)DBNull.Value },
+                    new SqlParameter("@kaVolume24h", SqlDbType.Decimal) { Value = IsDbNull(p.kaVolume24h) },
+                    new SqlParameter("@kaRetrievedAt", SqlDbType.DateTime) { Value = p.kaRetrievedAtSanitised() }
+                };
                 string sp = "spKrakenUpdateById @kaId,@kaIndex,@kaPair,@kaLastTrade,@kaOpen,@kaBid,@kaAsk,@kaHigh24h,@kaLow24h,@kaVolume24h,@kaRetrievedAt";
-
-                var retSP = this.dbCon?.lKraken.FromSqlRaw(sp, lParams).AsEnumerable();
-
-                ret = retSP?.FirstOrDefault();
+                var retSP = dbCon.lKraken.FromSqlRaw(sp, lParams).AsEnumerable();
+                return retSP.FirstOrDefault();
             }
             catch (Exception ex)
             {
-                exc = ex;
+                _logger.LogError(ex, "Error in doKrakenUpdateById");
+                return null;
             }
+        }
 
+        public ApiResponse<List<cKrakenInfo>?> doKrakenInfoList(dbContext dbCon)
+        {
+            var ret = new ApiResponse<List<cKrakenInfo>?>();
+            try
+            {
+                SqlParameter[] lParams = {};
+                string sp = "spKrakenInfoList";
+                var retSP = dbCon.lKrakenInfoList.FromSqlRaw(sp, lParams).AsEnumerable();
+                ret.apiData = retSP?.ToList() ?? new List<cKrakenInfo>();
+                ret.apiSuccess = true;
+            }
+            catch (Exception ex)
+            {
+                ret.apiSuccess = false;
+                ret.apiMessage = ex.Message + (ex.InnerException != null ? " : " + ex.InnerException.Message : "");
+                _logger.LogError(ex, "Error in doKrakenInfoList");
+            }
             return ret;
         }
 
-
-
-        public ApiResponse<List<cKrakenPercentageSwing>?> doKrakenPercentageSwingList(cKrakenPercentageSwingParms p)
+        public ApiResponse<List<cKrakenPercentageSwing>?> doKrakenPercentageSwingList(dbContext dbCon, cKrakenPercentageSwingParms p)
         {
-
-            ApiResponse<List<cKrakenPercentageSwing>?> ret = new ApiResponse<List<cKrakenPercentageSwing>?>();
-
+            var ret = new ApiResponse<List<cKrakenPercentageSwing>?>();
             try
             {
                 SqlParameter[] lParams = {
-                new SqlParameter("@kapsMinSwing", SqlDbType.Decimal, 0, ParameterDirection.Input, true, 0, 0, "", DataRowVersion.Current, p.kapsMinSwing)
-                , new SqlParameter("@kapsPeriodValue", SqlDbType.Int, 0, ParameterDirection.Input, true, 0, 0, "", DataRowVersion.Current, p.kapsPeriodValue)
-                , new SqlParameter("@kapsPeriodUnit", SqlDbType.NVarChar, 0, ParameterDirection.Input, true, 0, 0, "", DataRowVersion.Current, p.kapsPeriodUnit)
-                , new SqlParameter("@kapsRowCount", SqlDbType.Int, 0, ParameterDirection.Input, true, 0, 0, "", DataRowVersion.Current, p.kapsRowCount)
-                , new SqlParameter("@kapsPeriodOffset", SqlDbType.Int, 0, ParameterDirection.Input, true, 0, 0, "", DataRowVersion.Current, p.kapsPeriodOffset)
-
-            };
-
+                    new SqlParameter("@kapsMinSwing", SqlDbType.Decimal) { Value = p.kapsMinSwing },
+                    new SqlParameter("@kapsPeriodValue", SqlDbType.Int) { Value = p.kapsPeriodValue },
+                    new SqlParameter("@kapsPeriodUnit", SqlDbType.NVarChar) { Value = p.kapsPeriodUnit },
+                    new SqlParameter("@kapsRowCount", SqlDbType.Int) { Value = p.kapsRowCount },
+                    new SqlParameter("@kapsPeriodOffset", SqlDbType.Int) { Value = p.kapsPeriodOffset }
+                };
                 string sp = "spKrakenRollingPercentSwing @kapsMinSwing, @kapsPeriodValue, @kapsPeriodUnit, @kapsRowCount, @kapsPeriodOffset";
-
-                var retSP = this.dbCon?.lKrakenPercentageSwing.FromSqlRaw(sp, lParams).AsEnumerable();
-
-                if (retSP != null)
-                {
-                    ret.apiData = retSP?.ToList()!;
-                }
-                else
-                {
-                    ret.apiSuccess = false;
-                    ret.apiMessage = "No data returned from stored procedure.";
-                }
+                var retSP = dbCon.lKrakenPercentageSwing.FromSqlRaw(sp, lParams).AsEnumerable();
+                ret.apiData = retSP?.ToList() ?? new List<cKrakenPercentageSwing>();
+                ret.apiSuccess = true;
             }
             catch (Exception ex)
             {
+                ret.apiSuccess = false;
                 ret.apiMessage = ex.Message + (ex.InnerException != null ? " : " + ex.InnerException.Message : "");
+                _logger.LogError(ex, "Error in doKrakenPercentageSwingList");
             }
-
             return ret;
         }
-
     }
+
+    // --- Model Classes ---
 
     public class cKrakenAssetInfo
     {
@@ -292,48 +281,37 @@ namespace GooseGooseGo_Net.ef
         public DateTime kaiDT { get; set; }
     }
 
-
     public class cKraken
     {
         [Key]
         public int kaId { get; set; }
         public int kaIndex { get; set; }
         public string kaPair { get; set; } = "";
-
-        [Precision(18, 4)]
+        [Precision(18, 5)]
         public decimal kaLastTrade { get; set; }
-
-        [Precision(18, 4)]
+        [Precision(18, 5)]
         public decimal? kaOpen { get; set; }
-
-        [Precision(18, 4)]
+        [Precision(18, 5)]
         public decimal? kaBid { get; set; }
-
-        [Precision(18, 4)]
+        [Precision(18, 5)]
         public decimal? kaAsk { get; set; }
-
-        [Precision(18, 4)]
+        [Precision(18, 5)]
         public decimal? kaHigh24h { get; set; }
-
-        [Precision(18, 4)]
+        [Precision(18, 5)]
         public decimal? kaLow24h { get; set; }
-
-        public string? kaVolume24h { get; set; }
+        [Precision(18, 5)]
+        public decimal? kaVolume24h { get; set; }
         public DateTime kaRetrievedAt { get; set; }
-
-
         public DateTime kaRetrievedAtSanitised()
         {
-            DateTime ret = DateTime.Now;
-
             var dt = this.kaRetrievedAt.ToLocalTime();
-            ret = new DateTime(dt.Year, dt.Month, dt.Day, dt.Hour, dt.Minute, dt.Second);
-            return ret;
+            return new DateTime(dt.Year, dt.Month, dt.Day, dt.Hour, dt.Minute, dt.Second);
         }
     }
 
     public class cKrakenPercentageSwingParms
     {
+        [Precision(18, 5)]
         public decimal kapsMinSwing { get; set; } = 0.0M;
         public int kapsPeriodValue { get; set; } = 0;
         public string kapsPeriodUnit { get; set; } = "";
@@ -341,27 +319,44 @@ namespace GooseGooseGo_Net.ef
         public int kapsPeriodOffset { get; set; } = 0;
     }
 
+    public class cKrakenInfo
+    {
+        [Key]
+        public string kaPair { get; set; } = "";
+        [Precision(18, 5)]
+        public decimal kaMinLastTrade { get; set; } = 0.0M;
+        [Precision(18, 5)]
+        public decimal kaMaxLastTrade { get; set; } = 0.0M;
+        [Precision(18, 5)]
+        public decimal kaHigh24h { get; set; } = 0.0M;
+        [Precision(18, 5)]
+        public decimal kaLow24h { get; set; } = 0.0M;
+        [Precision(18, 5)]
+        public decimal kaVolume24h { get; set; } = 0.0M;
+        public DateTime kaRetrievedAt { get; set; } = DateTime.Now;
+    }    
 
     public class cKrakenPercentageSwing
     {
         [Key]
         public string kapsPair { get; set; } = "";
-        [Precision(18, 4)]
+        [Precision(18, 5)]
         public decimal kapsStartTrade { get; set; } = 0.0M;
-        [Precision(18, 4)]
+        [Precision(18, 5)]
         public decimal kapsEndTrade { get; set; } = 0.0M;
-        [Precision(18, 4)]
+        [Precision(18, 5)]
         public decimal kapsTradeDiffPercent { get; set; } = 0.0M;
-        [Precision(18, 4)]
+        [Precision(18, 5)]
         public decimal kapsTradeDiff { get; set; } = 0.0M;
-        [Precision(18, 4)]
+        [Precision(18, 5)]
         public decimal kapsTradeDiffAbs { get; set; } = 0.0M;
-        public string kapsStartVolume { get; set; } = "";
-        public string kapsEndVolume { get; set; } = "";
+        [Precision(18, 5)]
+        public decimal kapsStartVolume { get; set; } = 0.0M;
+        [Precision(18, 5)]
+        public decimal kapsEndVolume { get; set; } = 0.0M;
         public DateTime kapsStartRetrievedAt { get; set; }
         public DateTime kapsEndRetrievedAt { get; set; }
     }
-
 
     public class cKrakenAPIParms
     {
@@ -369,43 +364,29 @@ namespace GooseGooseGo_Net.ef
         public string apPath { get; set; } = "";
     }
 
-
-    // Generic Kraken envelope: { "error":[], "result":{...} }
     public sealed record KrakenEnvelope<T>(
         [property: JsonPropertyName("error")] List<string> Error,
         [property: JsonPropertyName("result")] T? Result
     );
 
-    // ----- Ticker -----
-
     public sealed class KrakenTickerEntry
     {
-        // Best ask [price, whole lot volume, lot volume]
         [JsonPropertyName("a")] public string[]? Ask { get; set; }
-        // Best bid [price, whole lot volume, lot volume]
         [JsonPropertyName("b")] public string[]? Bid { get; set; }
-        // Last trade closed [price, lot volume]
         [JsonPropertyName("c")] public string[]? LastTrade { get; set; }
-        // Volume [today, last 24 hours]
         [JsonPropertyName("v")] public string[]? Volume { get; set; }
-        // Volume weighted average price [today, last 24 hours]
         [JsonPropertyName("p")] public string[]? Vwap { get; set; }
-        // Number of trades [today, last 24 hours]
         [JsonPropertyName("t")] public int[]? Trades { get; set; }
-        // Low [today, last 24 hours]
         [JsonPropertyName("l")] public string[]? Low { get; set; }
-        // High [today, last 24 hours]
         [JsonPropertyName("h")] public string[]? High { get; set; }
-        // Today’s opening price
         [JsonPropertyName("o")] public string? Open { get; set; }
     }
 
-    // View-friendly ticker row
     public sealed record TickerRow(
-        string Pair,          // e.g. "XBTUSD"
-        decimal Last,         // last trade price
-        decimal Open,         // today's open
-        decimal ChangePct,    // (Last-Open)/Open*100
+        string Pair,
+        decimal Last,
+        decimal Open,
+        decimal ChangePct,
         decimal Bid,
         decimal Ask,
         decimal High24h,
@@ -413,9 +394,6 @@ namespace GooseGooseGo_Net.ef
         string Volume24h
     );
 
-    // ----- OHLC -----
-
-    // Single OHLC candle from Kraken: [time, open, high, low, close, vwap, volume, count]
     public sealed record OhlcCandle(
         long Time,
         decimal Open,
@@ -427,10 +405,7 @@ namespace GooseGooseGo_Net.ef
         int Count
     );
 
-    
-
-
-    public class  cKrakenApiDetails
+    public class cKrakenApiDetails
     {
         public string apidet_api_url { get; set; } = "";
         public string apidet_key { get; set; } = "";

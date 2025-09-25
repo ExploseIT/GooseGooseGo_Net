@@ -30,43 +30,6 @@ CREATE TABLE [dbo].[tblSettings](
 ) ON [PRIMARY]
 GO
 
-/*
-drop table tblAssetSource
-go
-drop table tblAssetWatch
-go
-*/
-
-if not exists (select * from sys.tables where name='tblAssetSource')
-CREATE TABLE [dbo].[tblAssetSource](
-	[assId] [nvarchar](20) NOT NULL,
-	[assSource] [nvarchar](300) NOT NULL,
-	[assDTAdded] datetime NOT NULL,
-	[assEnabled] [bit] NOT NULL,
- CONSTRAINT [PK_tblAssetSource] PRIMARY KEY CLUSTERED 
-(
-	[assId] ASC
-)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
-) ON [PRIMARY]
-GO
-
-if not exists (select * from sys.tables where name='tblAssetWatch')
-CREATE TABLE [dbo].[tblAssetWatch](
-	[aswId] [int] IDENTITY(1,1) NOT NULL,
-	[aswSourceId] [nvarchar](10) NOT NULL,
-	[aswPair] [nvarchar](32) NOT NULL,
-	[aswEnabled] [bit] NOT NULL,
-	[aswPriceTriggerUp] [decimal](18, 4) NULL,
-	[aswPriceTriggerDown] [decimal](18, 4) NULL,
-	[aswPriceTakeProfit] [decimal](18, 4) NULL,
-	[aswPriceStopLoss] [decimal](18, 4) NULL,
-
- CONSTRAINT [PK_tblAssetWatch] PRIMARY KEY CLUSTERED 
-(
-	[aswId] ASC
-)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
-) ON [PRIMARY]
-GO
 
 
 if not exists (select * from tblAssetSource where assId='ASS_KRAKEN')
@@ -102,6 +65,123 @@ INSERT INTO [dbo].[tblAssetWatch]
 GO
 
 
+if not exists (select * from tblAssetWatch where aswSourceId='ASS_KRAKEN' and aswPair='PYTHUSD')
+INSERT INTO [dbo].[tblAssetWatch]
+           ([aswSourceId]
+           ,[aswPair]
+           ,[aswEnabled]
+           ,[aswPriceTriggerUp]
+		   ,[aswPriceTriggerDown]
+           ,[aswPriceTakeProfit]
+           ,[aswPriceStopLoss])
+     VALUES
+           ('ASS_KRAKEN'
+           ,'PYTHUSD'
+           ,1
+           ,0.11919
+		   ,0.15392
+           ,0.14919
+           ,0.11919)
+GO
+
+if not exists (select * from tblAssetWatch where aswSourceId='ASS_KRAKEN' and aswPair='PUMPUSD')
+INSERT INTO [dbo].[tblAssetWatch]
+           ([aswSourceId]
+           ,[aswPair]
+           ,[aswEnabled]
+           ,[aswPriceTriggerUp]
+		   ,[aswPriceTriggerDown]
+           ,[aswPriceTakeProfit]
+           ,[aswPriceStopLoss])
+     VALUES
+           ('ASS_KRAKEN'
+           ,'PUMPUSD'
+           ,1
+           ,0.11919
+		   ,0.15392
+           ,0.14919
+           ,0.11919)
+GO
+
+-- delete from tblAssetWatch where aswSourceId='ASS_KRAKEN' and aswPair='PAXGUSD'
+-- Track tokenised gold
+if not exists (select * from tblAssetWatch where aswSourceId='ASS_KRAKEN' and aswPair='PAXGUSD')
+INSERT INTO [dbo].[tblAssetWatch]
+           ([aswSourceId]
+           ,[aswPair]
+           ,[aswEnabled]
+           ,[aswPriceTriggerUp]
+		   ,[aswPriceTriggerDown]
+           ,[aswPriceTakeProfit]
+           ,[aswPriceStopLoss])
+     VALUES
+           ('ASS_KRAKEN'
+           ,'PAXGUSD'
+           ,1
+           ,3777.53
+		   ,3400.00
+           ,4000.00
+           ,2900.00)
+GO
+
+if not exists (select * from tblAssetWatch where aswSourceId='ASS_KRAKEN' and aswPair='IMXUSD')
+INSERT INTO [dbo].[tblAssetWatch]
+           ([aswSourceId]
+           ,[aswPair]
+           ,[aswEnabled]
+           ,[aswPriceTriggerUp]
+		   ,[aswPriceTriggerDown]
+           ,[aswPriceTakeProfit]
+           ,[aswPriceStopLoss])
+     VALUES
+           ('ASS_KRAKEN'
+           ,'IMXUSD'
+           ,1
+           ,0.7599
+		   ,0.9200
+           ,0.9610
+           ,0.7399)
+GO
+
+if not exists (select * from tblAssetWatch where aswSourceId='ASS_KRAKEN' and aswPair='SOLUSD')
+INSERT INTO [dbo].[tblAssetWatch]
+           ([aswSourceId]
+           ,[aswPair]
+           ,[aswEnabled]
+           ,[aswPriceTriggerUp]
+		   ,[aswPriceTriggerDown]
+           ,[aswPriceTakeProfit]
+           ,[aswPriceStopLoss])
+     VALUES
+           ('ASS_KRAKEN'
+           ,'SOLUSD'
+           ,1
+           ,220.19
+		   ,220.19
+           ,250.00
+           ,200.0)
+GO
+
+
+if not exists (select * from tblAssetWatch where aswSourceId='ASS_KRAKEN' and aswPair='CROUSD')
+INSERT INTO [dbo].[tblAssetWatch]
+           ([aswSourceId]
+           ,[aswPair]
+           ,[aswEnabled]
+           ,[aswPriceTriggerUp]
+		   ,[aswPriceTriggerDown]
+           ,[aswPriceTakeProfit]
+           ,[aswPriceStopLoss])
+     VALUES
+           ('ASS_KRAKEN'
+           ,'CROUSD'
+           ,1
+           ,0.255
+		   ,0.255
+           ,0.261
+           ,0.180)
+GO
+
 if exists (select * from sys.procedures where name='spAssetWatchList')
 drop procedure spAssetWatchList
 go
@@ -112,7 +192,7 @@ select [aswId]
       ,[aswSourceId]
       ,[aswPair]
 	  , cast((select top 1 ka.kaLastTrade from tblKrakenAsset ka left join tblKrakenAssetInfo kai on ka.kaIndex=kai.kaiId where ka.kaPair=asw.aswPair order by kai.kaiDT desc)
-	   as decimal(18,4)) as aswLastTrade
+	   as decimal(18,5)) as aswLastTrade
       ,[aswEnabled]
       ,[aswPriceTriggerUp]
 	  ,[aswPriceTriggerDown]
@@ -148,19 +228,54 @@ CREATE TABLE tblKrakenAsset (
     kaId INT IDENTITY(1,1) PRIMARY KEY,
     kaIndex INT NOT NULL, -- references kaiId in tblKrakenAssetInfo
     kaPair NVARCHAR(32) NOT NULL,
-    kaLastTrade DECIMAL(18,4) NOT NULL,
-    kaOpen DECIMAL(18,4) NULL,
-    kaBid DECIMAL(18,4) NULL,
-    kaAsk DECIMAL(18,4) NULL,
-    kaHigh24h DECIMAL(18,4) NULL,
-    kaLow24h DECIMAL(18,4) NULL,
-    kaVolume24h NVARCHAR(64) NULL,
+    kaLastTrade DECIMAL(18,5) NOT NULL,
+    kaOpen DECIMAL(18,5) NULL,
+    kaBid DECIMAL(18,5) NULL,
+    kaAsk DECIMAL(18,5) NULL,
+    kaHigh24h DECIMAL(18,5) NULL,
+    kaLow24h DECIMAL(18,5) NULL,
+    kaVolume24h decimal(18,5) NULL,
     kaRetrievedAt DATETIME NOT NULL,
     CONSTRAINT FK_tblKrakenAsset_kaIndex FOREIGN KEY (kaIndex)
         REFERENCES tblKrakenAssetInfo(kaiId)
         ON DELETE CASCADE
         ON UPDATE CASCADE
 );
+
+
+drop table tblAssetSource
+
+drop table tblAssetWatch
+
+if not exists (select * from sys.tables where name='tblAssetSource')
+CREATE TABLE [dbo].[tblAssetSource](
+	[assId] [nvarchar](20) NOT NULL,
+	[assSource] [nvarchar](300) NOT NULL,
+	[assDTAdded] datetime NOT NULL,
+	[assEnabled] [bit] NOT NULL,
+ CONSTRAINT [PK_tblAssetSource] PRIMARY KEY CLUSTERED 
+(
+	[assId] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+
+
+if not exists (select * from sys.tables where name='tblAssetWatch')
+CREATE TABLE [dbo].[tblAssetWatch](
+	[aswId] [int] IDENTITY(1,1) NOT NULL,
+	[aswSourceId] [nvarchar](10) NOT NULL,
+	[aswPair] [nvarchar](32) NOT NULL,
+	[aswEnabled] [bit] NOT NULL,
+	[aswPriceTriggerUp] [decimal](18,5) NULL,
+	[aswPriceTriggerDown] [decimal](18,5) NULL,
+	[aswPriceTakeProfit] [decimal](18,5) NULL,
+	[aswPriceStopLoss] [decimal](18,5) NULL,
+
+ CONSTRAINT [PK_tblAssetWatch] PRIMARY KEY CLUSTERED 
+(
+	[aswId] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
 
 end
 go
@@ -174,7 +289,7 @@ IF EXISTS (SELECT * FROM sys.procedures WHERE name = 'spKrakenRollingPercentSwin
 GO
 
 CREATE PROCEDURE spKrakenRollingPercentSwing
-    @kapsMinSwing DECIMAL(18, 4),
+    @kapsMinSwing DECIMAL(18,5),
     @kapsPeriodValue INT,
     @kapsPeriodUnit NVARCHAR(10),
 	@kapsRowCount int,
@@ -221,15 +336,15 @@ BEGIN
     )
     SELECT TOP (@kapsRowCount)
         wsStart.kaPair AS kapsPair,
-        CAST(wsStart.kaLastTrade AS DECIMAL(18, 4)) AS kapsStartTrade,
-        CAST(wsEnd.kaLastTrade AS DECIMAL(18, 4)) AS kapsEndTrade,
+        CAST(wsStart.kaLastTrade AS DECIMAL(18,5)) AS kapsStartTrade,
+        CAST(wsEnd.kaLastTrade AS DECIMAL(18,5)) AS kapsEndTrade,
         -- Standard percent change calculation; NULL if not computable
         CASE 
             WHEN wsStart.kaLastTrade = 0.0 OR wsEnd.kaLastTrade = 0.0 THEN NULL
             ELSE CAST((wsEnd.kaLastTrade - wsStart.kaLastTrade) * 100.0 / wsStart.kaLastTrade AS DECIMAL(18, 3))
         END AS kapsTradeDiffPercent,
-        CAST((wsEnd.kaLastTrade - wsStart.kaLastTrade) AS DECIMAL(18, 4)) AS kapsTradeDiff,
-        CAST(ABS(wsEnd.kaLastTrade - wsStart.kaLastTrade) AS DECIMAL(18, 4)) AS kapsTradeDiffAbs,
+        CAST((wsEnd.kaLastTrade - wsStart.kaLastTrade) AS DECIMAL(18,5)) AS kapsTradeDiff,
+        CAST(ABS(wsEnd.kaLastTrade - wsStart.kaLastTrade) AS DECIMAL(18,5)) AS kapsTradeDiffAbs,
         wsStart.kaVolume24h AS kapsStartVolume,
         wsEnd.kaVolume24h AS kapsEndVolume,
         cast(wsStart.kaRetrievedAt as datetime) AS kapsStartRetrievedAt,
@@ -358,13 +473,13 @@ Create Procedure spKrakenUpdateById
            @kaId int
 		   ,@kaIndex int
 		   ,@kaPair nvarchar(32)
-           ,@kaLastTrade decimal(18,4)
-           ,@kaOpen decimal(18,4)
-           ,@kaBid decimal(18,4)
-           ,@kaAsk decimal(18,4)
-           ,@kaHigh24h decimal(18,4)
-           ,@kaLow24h decimal(18,4)
-           ,@kaVolume24h nvarchar(64)
+           ,@kaLastTrade decimal(18,5)
+           ,@kaOpen decimal(18,5)
+           ,@kaBid decimal(18,5)
+           ,@kaAsk decimal(18,5)
+           ,@kaHigh24h decimal(18,5)
+           ,@kaLow24h decimal(18,5)
+           ,@kaVolume24h decimal(18,5)
            ,@kaRetrievedAt datetime
 as
 begin
@@ -436,13 +551,11 @@ SELECT
       ,max([kaHigh24h]) as [kaHigh24h]
       ,min([kaLow24h]) as kaLow24h
       ,max([kaVolume24h]) as kaVolume24h
-      --,[kaRetrievedAt]
+      ,max([kaRetrievedAt]) as [kaRetrievedAt]
   FROM [dbo].[tblKrakenAsset]
-
   group by kaPair
+  order by kaPair asc
 end
-
-
 
 go
 

@@ -16,6 +16,8 @@ var host = Host.CreateDefaultBuilder(args)
         services.AddSingleton<IConfiguration>(configuration);
         services.AddSingleton<AssetDataService>();
         services.AddHostedService<Worker>();
+        services.AddSingleton<ent_kraken>();
+        services.AddHttpClient();
     })
     .UseWindowsService()
     .Build();

@@ -96,15 +96,23 @@ namespace GooseGooseGo_Net.ef
 
         public c_setting? doSettingsReadByName(string setName)
         {
-            c_setting ret = new c_setting();
-            SqlParameter[] lParams = { new SqlParameter("@setName", setName) };
-            string cmd = String.Format("Execute spSettingsList '{0}'", setName);
-            var mQuery = this.dbCon!.lSetting.FromSqlRaw(cmd);
-            var mEnum = mQuery.AsEnumerable<c_setting>();
-            if (mEnum != null)
+            c_setting ret = null!;
+            try
             {
-                ret = mEnum.FirstOrDefault<c_setting>()!;
+                SqlParameter[] lParams = { new SqlParameter("@setName", setName) };
+                string cmd = String.Format("Execute spSettingsList '{0}'", setName);
+                var mQuery = this.dbCon!.lSetting.FromSqlRaw(cmd);
+                var mEnum = mQuery.AsEnumerable<c_setting>();
+                if (mEnum != null)
+                {
+                    ret = mEnum.FirstOrDefault<c_setting>()!;
+                }
             }
+            catch (Exception ex)
+            {
+                exc = ex;
+            }
+
             return ret;
         }
 

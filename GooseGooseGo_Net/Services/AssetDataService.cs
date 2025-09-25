@@ -8,13 +8,15 @@ namespace GooseGooseGo_Net.Services
     {
         private readonly IServiceProvider _services;
         private readonly IConfiguration _conf;
-        private readonly ILogger<AssetDataService>? _logger;
+        private readonly ILogger<ent_kraken> _logger;
+        private IHttpClientFactory _httpClientFactory;
 
-        public AssetDataService(IServiceProvider services, IConfiguration conf, ILogger<AssetDataService>? logger)
+        public AssetDataService(IServiceProvider services, IConfiguration conf, ILogger<ent_kraken> logger, IHttpClientFactory httpClientFactory)
         {
             _services = services;
             _conf = conf;
             _logger = logger;
+            _httpClientFactory = httpClientFactory;
         }
 
         public async Task RetrieveAndStoreAssetDataAsync(CancellationToken stoppingToken)
@@ -25,10 +27,13 @@ namespace GooseGooseGo_Net.Services
                 // Retrieve asset data 
                 // Store in DB using your DbContext
                 var _conf = scope.ServiceProvider.GetRequiredService<IConfiguration>();
-                var dbCon = scope.ServiceProvider.GetRequiredService<dbContext>();
+                var _dbCon = scope.ServiceProvider.GetRequiredService<dbContext>();
 
-                var e_kraken = new ent_kraken(_conf, dbCon, _logger!);
-                var krakenData = await e_kraken.doApi_TickerListAsync();
+                var e_kraken = new ent_kraken(_conf, _logger, _httpClientFactory);
+
+                var apiDetails = e_kraken.doApiDetailsDecrypt(_dbCon);
+                
+                var krakenData = await e_kraken.doApi_TickerListAsync(apiDetails!);
                 //var all = await CryptoComClient.GetTickersAsync(_conf);
 
                 var now = DateTime.UtcNow;
@@ -38,11 +43,12 @@ namespace GooseGooseGo_Net.Services
                 {
                     if (krakenData?.Result != null)
                     {
-                        kai = e_kraken.doKrakenGetNextId();
+                        kai = e_kraken.doKrakenGetNextId(_dbCon)!;
 
                         foreach (var kvp in krakenData.Result)
                         {
                             var entry = kvp.Value;
+                            decimal c_dec = 0.0M;
                             var asset = new cKraken
                             {
                                 kaId = 0, // Assuming 0 means new entry; adjust as needed
@@ -54,13 +60,13 @@ namespace GooseGooseGo_Net.Services
                                 kaAsk = entry.Ask != null && entry.Ask.Length > 0 ? decimal.Parse(entry.Ask[0]) : (decimal?)null,
                                 kaHigh24h = entry.High != null && entry.High.Length > 1 ? decimal.Parse(entry.High[1]) : (decimal?)null,
                                 kaLow24h = entry.Low != null && entry.Low.Length > 1 ? decimal.Parse(entry.Low[1]) : (decimal?)null,
-                                kaVolume24h = entry.Volume != null && entry.Volume.Length > 1 ? entry.Volume[1] : null,
+                                kaVolume24h = decimal.TryParse(entry.Volume![1], out c_dec) ? c_dec: null,
                                 kaRetrievedAt = now
 
                             };
                             if (asset.kaPair.EndsWith("USD", StringComparison.OrdinalIgnoreCase))
                             {
-                                e_kraken.doKrakenUpdateById(asset);
+                                e_kraken.doKrakenUpdateById(_dbCon, asset);
                             }
                         }
                     }
@@ -78,7 +84,7 @@ namespace GooseGooseGo_Net.Services
                     kapsPeriodOffset = 0
                 };
 
-                var clkps = e_kraken.doKrakenPercentageSwingList(p_kps);
+                var clkps = e_kraken.doKrakenPercentageSwingList(_dbCon, p_kps);
             }
 
         }

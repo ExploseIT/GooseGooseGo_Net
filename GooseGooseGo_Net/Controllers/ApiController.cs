@@ -11,26 +11,34 @@ namespace GooseGooseGo_Net.Controllers
     [ApiController]
     public class ApiController : ControllerBase
     {
-        private readonly ILogger<ApiController> _logger;
+        private readonly ILogger<ent_kraken> _logger;
         private dbContext _dbCon;
         private IConfiguration _conf;
         private IWebHostEnvironment _env;
+        private IHttpClientFactory _httpClientFactory;
 
-        public ApiController(ILogger<ApiController> logger, IConfiguration conf, IWebHostEnvironment env, dbContext dbCon)
+        public ApiController(ILogger<ent_kraken> logger, IConfiguration conf, IWebHostEnvironment env, IHttpClientFactory httpClientFactory, dbContext dbCon)
         {
             _logger = logger;
             _dbCon = dbCon;
             _conf = conf;
             _env = env;
+            _httpClientFactory = httpClientFactory;
         }
 
         [HttpPost("doKrakenPercentageSwingList")]
         public ApiResponse<List<cKrakenPercentageSwing>?> doKrakenPercentageSwingList(cKrakenPercentageSwingParms p)
         {
-            var ret = new ent_kraken(_conf, _dbCon, _logger).doKrakenPercentageSwingList(p);
+            var ret = new ent_kraken(_conf, _logger, _httpClientFactory).doKrakenPercentageSwingList(_dbCon, p);
             return ret;
         }
 
+        [HttpPost("doKrakenInfoList")]
+        public ApiResponse<List<cKrakenInfo>?> doKrakenInfoList()
+        {
+            var ret = new ent_kraken(_conf, _logger, _httpClientFactory).doKrakenInfoList(_dbCon);
+            return ret;
+        }
     }
 
 }
