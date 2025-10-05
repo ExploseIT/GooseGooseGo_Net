@@ -20,14 +20,16 @@ namespace GooseGooseGo_Net.Controllers
         private dbContext _dbCon;
         private IConfiguration _conf;
         private IWebHostEnvironment _env;
+        private IHttpClientFactory _httpClientFactory;
 
-        public AdminController(ILogger<AdminController> logger, IConfiguration conf, IWebHostEnvironment env, dbContext dbCon)
+        public AdminController(ILogger<AdminController> logger, IConfiguration conf, IWebHostEnvironment env, dbContext dbCon, IHttpClientFactory httpClientFactory)
         {
 
             _logger = logger;
             _dbCon = dbCon;
             _conf = conf;
             _env = env;
+            _httpClientFactory = httpClientFactory;
         }
 
         [AllowAnonymous]

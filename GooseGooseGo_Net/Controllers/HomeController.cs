@@ -12,13 +12,13 @@ namespace GooseGooseGo_Net.Controllers
 {
     public class HomeController : Controller
     {
-        private readonly ILogger<ent_kraken> _logger;
+        private readonly ILogger<mApp> _logger;
         private IConfiguration _conf;
         private IWebHostEnvironment _env;
         private dbContext _dbCon;
         private IHttpClientFactory _httpClientFactory;
 
-        public HomeController(ILogger<ent_kraken> logger, IConfiguration conf, IWebHostEnvironment env, IHttpClientFactory httpClientFactory, dbContext dbCon)
+        public HomeController(ILogger<mApp> logger, IConfiguration conf, IWebHostEnvironment env, IHttpClientFactory httpClientFactory, dbContext dbCon)
         {
             _logger = logger;
             _conf = conf;
@@ -37,10 +37,15 @@ namespace GooseGooseGo_Net.Controllers
 
             var _e_cmcap = new ent_cmcap(_conf, _dbCon);
             var _e_kraken = new ent_kraken(_conf, _logger, _httpClientFactory);
+            var _e_mexc = new ent_mexc(_conf, _logger, _httpClientFactory);
 
-            var apiDetails = _e_kraken.doApiDetailsDecrypt(_dbCon);
+            var apiDetailsMexc = _e_mexc.doApiDetailsDecrypt(_dbCon);
 
-            KrakenEnvelope<Dictionary<string, KrakenTickerEntry>>? krakenData = await _e_kraken.doApi_TickerListAsync(apiDetails!);
+            var apiDetailsKraken = _e_kraken.doApiDetailsDecrypt(_dbCon);
+
+            List<MexcTickerEntry>? mexcData = await _e_mexc.doApi_TickerListAsync(apiDetailsMexc!);
+
+            KrakenEnvelope<Dictionary<string, KrakenTickerEntry>>? krakenData = await _e_kraken.doApi_TickerListAsync(apiDetailsKraken!);
 
             string json_cmc = await _e_cmcap.doAPIQuery();
 

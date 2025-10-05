@@ -32,6 +32,50 @@ GO
 
 
 
+
+
+if exists (select * from sys.procedures where name='spAssetWatchInit')
+drop procedure spAssetWatchInit
+go
+create procedure spAssetWatchInit
+as
+begin
+
+drop table tblAssetSource
+
+drop table tblAssetWatch
+
+if not exists (select * from sys.tables where name='tblAssetSource')
+CREATE TABLE [dbo].[tblAssetSource](
+	[assId] [nvarchar](20) NOT NULL,
+	[assSource] [nvarchar](300) NOT NULL,
+	[assDTAdded] datetime NOT NULL,
+	[assEnabled] [bit] NOT NULL,
+ CONSTRAINT [PK_tblAssetSource] PRIMARY KEY CLUSTERED 
+(
+	[assId] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+
+
+if not exists (select * from sys.tables where name='tblAssetWatch')
+CREATE TABLE [dbo].[tblAssetWatch](
+	[aswId] [int] IDENTITY(1,1) NOT NULL,
+	[aswSourceId] [nvarchar](10) NOT NULL,
+	[aswPair] [nvarchar](32) NOT NULL,
+	[aswEnabled] [bit] NOT NULL,
+	[aswPriceTriggerUp] [decimal](18,5) NULL,
+	[aswPriceTriggerDown] [decimal](18,5) NULL,
+	[aswPriceTakeProfit] [decimal](18,5) NULL,
+	[aswPriceStopLoss] [decimal](18,5) NULL,
+
+ CONSTRAINT [PK_tblAssetWatch] PRIMARY KEY CLUSTERED 
+(
+	[aswId] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+
+
 if not exists (select * from tblAssetSource where assId='ASS_KRAKEN')
 INSERT INTO [dbo].[tblAssetSource]
            ([assId]
@@ -43,7 +87,19 @@ INSERT INTO [dbo].[tblAssetSource]
            ,'KRAKEN'
            ,GETDATE()
            ,1)
-GO
+
+if not exists (select * from tblAssetSource where assId='ASS_MEXC')
+INSERT INTO [dbo].[tblAssetSource]
+           ([assId]
+           ,[assSource]
+           ,[assDTAdded]
+           ,[assEnabled])
+     VALUES
+           ('ASS_MEXC'
+           ,'MEXC'
+           ,GETDATE()
+           ,1)
+
 
 if not exists (select * from tblAssetWatch where aswSourceId='ASS_KRAKEN' and aswPair='MUSD')
 INSERT INTO [dbo].[tblAssetWatch]
@@ -62,9 +118,25 @@ INSERT INTO [dbo].[tblAssetWatch]
 		   ,2.4
            ,2.6
            ,1.8)
-GO
 
-
+if not exists (select * from tblAssetWatch where aswSourceId='ASS_MEXC' and aswPair='MYXUSD')
+INSERT INTO [dbo].[tblAssetWatch]
+           ([aswSourceId]
+           ,[aswPair]
+           ,[aswEnabled]
+           ,[aswPriceTriggerUp]
+		   ,[aswPriceTriggerDown]
+           ,[aswPriceTakeProfit]
+           ,[aswPriceStopLoss])
+     VALUES
+           ('ASS_MEXC'
+           ,'MYXUSD'
+           ,1
+           ,5.7
+		   ,12.0
+           ,12.6
+           ,1.8)
+/*
 if not exists (select * from tblAssetWatch where aswSourceId='ASS_KRAKEN' and aswPair='PYTHUSD')
 INSERT INTO [dbo].[tblAssetWatch]
            ([aswSourceId]
@@ -82,7 +154,7 @@ INSERT INTO [dbo].[tblAssetWatch]
 		   ,0.15392
            ,0.14919
            ,0.11919)
-GO
+
 
 if not exists (select * from tblAssetWatch where aswSourceId='ASS_KRAKEN' and aswPair='PUMPUSD')
 INSERT INTO [dbo].[tblAssetWatch]
@@ -101,7 +173,6 @@ INSERT INTO [dbo].[tblAssetWatch]
 		   ,0.15392
            ,0.14919
            ,0.11919)
-GO
 
 -- delete from tblAssetWatch where aswSourceId='ASS_KRAKEN' and aswPair='PAXGUSD'
 -- Track tokenised gold
@@ -122,7 +193,6 @@ INSERT INTO [dbo].[tblAssetWatch]
 		   ,3400.00
            ,4000.00
            ,2900.00)
-GO
 
 if not exists (select * from tblAssetWatch where aswSourceId='ASS_KRAKEN' and aswPair='IMXUSD')
 INSERT INTO [dbo].[tblAssetWatch]
@@ -141,7 +211,6 @@ INSERT INTO [dbo].[tblAssetWatch]
 		   ,0.9200
            ,0.9610
            ,0.7399)
-GO
 
 if not exists (select * from tblAssetWatch where aswSourceId='ASS_KRAKEN' and aswPair='SOLUSD')
 INSERT INTO [dbo].[tblAssetWatch]
@@ -160,7 +229,6 @@ INSERT INTO [dbo].[tblAssetWatch]
 		   ,220.19
            ,250.00
            ,200.0)
-GO
 
 
 if not exists (select * from tblAssetWatch where aswSourceId='ASS_KRAKEN' and aswPair='CROUSD')
@@ -180,7 +248,11 @@ INSERT INTO [dbo].[tblAssetWatch]
 		   ,0.255
            ,0.261
            ,0.180)
-GO
+*/
+end
+go
+
+
 
 if exists (select * from sys.procedures where name='spAssetWatchList')
 drop procedure spAssetWatchList
@@ -242,43 +314,9 @@ CREATE TABLE tblKrakenAsset (
         ON UPDATE CASCADE
 );
 
-
-drop table tblAssetSource
-
-drop table tblAssetWatch
-
-if not exists (select * from sys.tables where name='tblAssetSource')
-CREATE TABLE [dbo].[tblAssetSource](
-	[assId] [nvarchar](20) NOT NULL,
-	[assSource] [nvarchar](300) NOT NULL,
-	[assDTAdded] datetime NOT NULL,
-	[assEnabled] [bit] NOT NULL,
- CONSTRAINT [PK_tblAssetSource] PRIMARY KEY CLUSTERED 
-(
-	[assId] ASC
-)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
-) ON [PRIMARY]
-
-
-if not exists (select * from sys.tables where name='tblAssetWatch')
-CREATE TABLE [dbo].[tblAssetWatch](
-	[aswId] [int] IDENTITY(1,1) NOT NULL,
-	[aswSourceId] [nvarchar](10) NOT NULL,
-	[aswPair] [nvarchar](32) NOT NULL,
-	[aswEnabled] [bit] NOT NULL,
-	[aswPriceTriggerUp] [decimal](18,5) NULL,
-	[aswPriceTriggerDown] [decimal](18,5) NULL,
-	[aswPriceTakeProfit] [decimal](18,5) NULL,
-	[aswPriceStopLoss] [decimal](18,5) NULL,
-
- CONSTRAINT [PK_tblAssetWatch] PRIMARY KEY CLUSTERED 
-(
-	[aswId] ASC
-)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
-) ON [PRIMARY]
-
 end
 go
+
 
 if not exists (select * from sys.tables where name='tblKrakenAsset' or name='tblKrakenAssetInfo') 
 exec spKrakenRestart

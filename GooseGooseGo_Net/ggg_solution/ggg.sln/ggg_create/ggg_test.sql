@@ -10,11 +10,15 @@ select top 200 * from tblKrakenAssetInfo order by kaiDT desc
 
 */
 select * from tblSettings
+
+
 select 
 (select kaLastTrade from tblKrakenAsset where kaPair='MUSD' and kaIndex=(select top 1 kaiId from tblKrakenAssetInfo order by kaiDT desc))
 , (select COUNT (*) from tblKrakenAssetInfo) as [Row Count]
 
 select top 5 * from tblKrakenAssetInfo order by kaiDT desc
+
+exec spAssetWatchInit
 
 exec spKrakenInfoList
 exec spAssetWatchList

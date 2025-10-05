@@ -34,6 +34,10 @@ namespace GooseGooseGo_Net.ef
         public DbSet<cKrakenAssetInfo> lKrakenAssetInfo { get; set; }
         public DbSet<cKrakenPercentageSwing> lKrakenPercentageSwing { get; set; }
         public DbSet<cKrakenInfo> lKrakenInfoList { get; set; }
+        public DbSet<cMexc> lMexc { get; set; }
+        public DbSet<cMexcAssetInfo> lMexcAssetInfo { get; set; }
+        public DbSet<cMexcPercentageSwing> lMexcPercentageSwing { get; set; }
+        public DbSet<cMexcInfo> lMexcInfoList { get; set; }
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {

@@ -11,13 +11,13 @@ namespace GooseGooseGo_Net.Controllers
     [ApiController]
     public class ApiController : ControllerBase
     {
-        private readonly ILogger<ent_kraken> _logger;
+        private readonly ILogger<mApp> _logger;
         private dbContext _dbCon;
         private IConfiguration _conf;
         private IWebHostEnvironment _env;
         private IHttpClientFactory _httpClientFactory;
 
-        public ApiController(ILogger<ent_kraken> logger, IConfiguration conf, IWebHostEnvironment env, IHttpClientFactory httpClientFactory, dbContext dbCon)
+        public ApiController(ILogger<mApp> logger, IConfiguration conf, IWebHostEnvironment env, IHttpClientFactory httpClientFactory, dbContext dbCon)
         {
             _logger = logger;
             _dbCon = dbCon;

@@ -1,4 +1,6 @@
+
 using GooseGooseGo_Net.ef;
+using GooseGooseGo_Net.Models;
 using GooseGooseGo_Net.Services;
 using Microsoft.EntityFrameworkCore;
 
@@ -8,10 +10,10 @@ namespace GooseGooseGo_Net.Services
     {
         private readonly IServiceProvider _services;
         private readonly IConfiguration _conf;
-        private readonly ILogger<ent_kraken> _logger;
+        private readonly ILogger<mApp> _logger;
         private IHttpClientFactory _httpClientFactory;
 
-        public AssetDataService(IServiceProvider services, IConfiguration conf, ILogger<ent_kraken> logger, IHttpClientFactory httpClientFactory)
+        public AssetDataService(IServiceProvider services, IConfiguration conf, ILogger<mApp> logger, IHttpClientFactory httpClientFactory)
         {
             _services = services;
             _conf = conf;
@@ -30,10 +32,16 @@ namespace GooseGooseGo_Net.Services
                 var _dbCon = scope.ServiceProvider.GetRequiredService<dbContext>();
 
                 var e_kraken = new ent_kraken(_conf, _logger, _httpClientFactory);
+                var e_mexc = new ent_mexc(_conf, _logger, _httpClientFactory);
 
-                var apiDetails = e_kraken.doApiDetailsDecrypt(_dbCon);
-                
-                var krakenData = await e_kraken.doApi_TickerListAsync(apiDetails!);
+                var apiDetailsMexc = e_mexc.doApiDetailsDecrypt(_dbCon);
+
+                var mexcData = await e_mexc.doApi_TickerListAsync(apiDetailsMexc!);
+
+
+                var apiDetailsKraken = e_kraken.doApiDetailsDecrypt(_dbCon);
+
+                var krakenData = await e_kraken.doApi_TickerListAsync(apiDetailsKraken!);
                 //var all = await CryptoComClient.GetTickersAsync(_conf);
 
                 var now = DateTime.UtcNow;
