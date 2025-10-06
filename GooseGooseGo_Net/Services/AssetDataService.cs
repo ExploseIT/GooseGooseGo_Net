@@ -31,18 +31,15 @@ namespace GooseGooseGo_Net.Services
                 var _conf = scope.ServiceProvider.GetRequiredService<IConfiguration>();
                 var _dbCon = scope.ServiceProvider.GetRequiredService<dbContext>();
 
-                var e_kraken = new ent_kraken(_conf, _logger, _httpClientFactory);
-                var e_mexc = new ent_mexc(_conf, _logger, _httpClientFactory);
+                var e_kraken = new ent_kraken(_conf, _logger, _httpClientFactory,_dbCon);
+                var e_mexc = new ent_mexc(_conf, _logger, _httpClientFactory, _dbCon);
+                var e_cryptocom = new ent_cryptocom(_conf, _logger, _httpClientFactory, _dbCon);
 
-                var apiDetailsMexc = e_mexc.doApiDetailsDecrypt(_dbCon);
+                var cryptocomData = await e_cryptocom.doApi_TickerListAsync(_dbCon);
+                var mexcData = await e_mexc.doApi_TickerListAsync(_dbCon!);
 
-                var mexcData = await e_mexc.doApi_TickerListAsync(apiDetailsMexc!);
-
-
-                var apiDetailsKraken = e_kraken.doApiDetailsDecrypt(_dbCon);
-
-                var krakenData = await e_kraken.doApi_TickerListAsync(apiDetailsKraken!);
-                //var all = await CryptoComClient.GetTickersAsync(_conf);
+                var krakenData = await e_kraken.doApi_TickerListAsync(_dbCon);
+                
 
                 var now = DateTime.UtcNow;
                 cKrakenAssetInfo kai = new cKrakenAssetInfo();

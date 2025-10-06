@@ -29,14 +29,14 @@ namespace GooseGooseGo_Net.Controllers
         [HttpPost("doKrakenPercentageSwingList")]
         public ApiResponse<List<cKrakenPercentageSwing>?> doKrakenPercentageSwingList(cKrakenPercentageSwingParms p)
         {
-            var ret = new ent_kraken(_conf, _logger, _httpClientFactory).doKrakenPercentageSwingList(_dbCon, p);
+            var ret = new ent_kraken(_conf, _logger, _httpClientFactory, _dbCon).doKrakenPercentageSwingList(_dbCon, p);
             return ret;
         }
 
         [HttpPost("doKrakenInfoList")]
         public ApiResponse<List<cKrakenInfo>?> doKrakenInfoList()
         {
-            var ret = new ent_kraken(_conf, _logger, _httpClientFactory).doKrakenInfoList(_dbCon);
+            var ret = new ent_kraken(_conf, _logger, _httpClientFactory, _dbCon).doKrakenInfoList(_dbCon);
             return ret;
         }
     }

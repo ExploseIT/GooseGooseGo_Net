@@ -76,32 +76,32 @@ CREATE TABLE [dbo].[tblAssetWatch](
 ) ON [PRIMARY]
 
 
-if not exists (select * from tblAssetSource where assId='ASS_KRAKEN')
+if not exists (select * from tblAssetSource where assId='AST_KRAKEN')
 INSERT INTO [dbo].[tblAssetSource]
            ([assId]
            ,[assSource]
            ,[assDTAdded]
            ,[assEnabled])
      VALUES
-           ('ASS_KRAKEN'
+           ('AST_KRAKEN'
            ,'KRAKEN'
            ,GETDATE()
            ,1)
 
-if not exists (select * from tblAssetSource where assId='ASS_MEXC')
+if not exists (select * from tblAssetSource where assId='AST_MEXC')
 INSERT INTO [dbo].[tblAssetSource]
            ([assId]
            ,[assSource]
            ,[assDTAdded]
            ,[assEnabled])
      VALUES
-           ('ASS_MEXC'
+           ('AST_MEXC'
            ,'MEXC'
            ,GETDATE()
            ,1)
 
 
-if not exists (select * from tblAssetWatch where aswSourceId='ASS_KRAKEN' and aswPair='MUSD')
+if not exists (select * from tblAssetWatch where aswSourceId='AST_KRAKEN' and aswPair='MUSD')
 INSERT INTO [dbo].[tblAssetWatch]
            ([aswSourceId]
            ,[aswPair]
@@ -111,7 +111,7 @@ INSERT INTO [dbo].[tblAssetWatch]
            ,[aswPriceTakeProfit]
            ,[aswPriceStopLoss])
      VALUES
-           ('ASS_KRAKEN'
+           ('AST_KRAKEN'
            ,'MUSD'
            ,1
            ,2.4
@@ -119,7 +119,7 @@ INSERT INTO [dbo].[tblAssetWatch]
            ,2.6
            ,1.8)
 
-if not exists (select * from tblAssetWatch where aswSourceId='ASS_MEXC' and aswPair='MYXUSD')
+if not exists (select * from tblAssetWatch where aswSourceId='AST_MEXC' and aswPair='MYXUSD')
 INSERT INTO [dbo].[tblAssetWatch]
            ([aswSourceId]
            ,[aswPair]
@@ -129,7 +129,7 @@ INSERT INTO [dbo].[tblAssetWatch]
            ,[aswPriceTakeProfit]
            ,[aswPriceStopLoss])
      VALUES
-           ('ASS_MEXC'
+           ('AST_MEXC'
            ,'MYXUSD'
            ,1
            ,5.7
@@ -137,7 +137,7 @@ INSERT INTO [dbo].[tblAssetWatch]
            ,12.6
            ,1.8)
 /*
-if not exists (select * from tblAssetWatch where aswSourceId='ASS_KRAKEN' and aswPair='PYTHUSD')
+if not exists (select * from tblAssetWatch where aswSourceId='AST_KRAKEN' and aswPair='PYTHUSD')
 INSERT INTO [dbo].[tblAssetWatch]
            ([aswSourceId]
            ,[aswPair]
@@ -147,7 +147,7 @@ INSERT INTO [dbo].[tblAssetWatch]
            ,[aswPriceTakeProfit]
            ,[aswPriceStopLoss])
      VALUES
-           ('ASS_KRAKEN'
+           ('AST_KRAKEN'
            ,'PYTHUSD'
            ,1
            ,0.11919
@@ -156,7 +156,7 @@ INSERT INTO [dbo].[tblAssetWatch]
            ,0.11919)
 
 
-if not exists (select * from tblAssetWatch where aswSourceId='ASS_KRAKEN' and aswPair='PUMPUSD')
+if not exists (select * from tblAssetWatch where aswSourceId='AST_KRAKEN' and aswPair='PUMPUSD')
 INSERT INTO [dbo].[tblAssetWatch]
            ([aswSourceId]
            ,[aswPair]
@@ -166,7 +166,7 @@ INSERT INTO [dbo].[tblAssetWatch]
            ,[aswPriceTakeProfit]
            ,[aswPriceStopLoss])
      VALUES
-           ('ASS_KRAKEN'
+           ('AST_KRAKEN'
            ,'PUMPUSD'
            ,1
            ,0.11919
@@ -174,9 +174,9 @@ INSERT INTO [dbo].[tblAssetWatch]
            ,0.14919
            ,0.11919)
 
--- delete from tblAssetWatch where aswSourceId='ASS_KRAKEN' and aswPair='PAXGUSD'
+-- delete from tblAssetWatch where aswSourceId='AST_KRAKEN' and aswPair='PAXGUSD'
 -- Track tokenised gold
-if not exists (select * from tblAssetWatch where aswSourceId='ASS_KRAKEN' and aswPair='PAXGUSD')
+if not exists (select * from tblAssetWatch where aswSourceId='AST_KRAKEN' and aswPair='PAXGUSD')
 INSERT INTO [dbo].[tblAssetWatch]
            ([aswSourceId]
            ,[aswPair]
@@ -186,7 +186,7 @@ INSERT INTO [dbo].[tblAssetWatch]
            ,[aswPriceTakeProfit]
            ,[aswPriceStopLoss])
      VALUES
-           ('ASS_KRAKEN'
+           ('AST_KRAKEN'
            ,'PAXGUSD'
            ,1
            ,3777.53
@@ -194,7 +194,7 @@ INSERT INTO [dbo].[tblAssetWatch]
            ,4000.00
            ,2900.00)
 
-if not exists (select * from tblAssetWatch where aswSourceId='ASS_KRAKEN' and aswPair='IMXUSD')
+if not exists (select * from tblAssetWatch where aswSourceId='AST_KRAKEN' and aswPair='IMXUSD')
 INSERT INTO [dbo].[tblAssetWatch]
            ([aswSourceId]
            ,[aswPair]
@@ -204,7 +204,7 @@ INSERT INTO [dbo].[tblAssetWatch]
            ,[aswPriceTakeProfit]
            ,[aswPriceStopLoss])
      VALUES
-           ('ASS_KRAKEN'
+           ('AST_KRAKEN'
            ,'IMXUSD'
            ,1
            ,0.7599
@@ -212,7 +212,7 @@ INSERT INTO [dbo].[tblAssetWatch]
            ,0.9610
            ,0.7399)
 
-if not exists (select * from tblAssetWatch where aswSourceId='ASS_KRAKEN' and aswPair='SOLUSD')
+if not exists (select * from tblAssetWatch where aswSourceId='AST_KRAKEN' and aswPair='SOLUSD')
 INSERT INTO [dbo].[tblAssetWatch]
            ([aswSourceId]
            ,[aswPair]
@@ -222,7 +222,7 @@ INSERT INTO [dbo].[tblAssetWatch]
            ,[aswPriceTakeProfit]
            ,[aswPriceStopLoss])
      VALUES
-           ('ASS_KRAKEN'
+           ('AST_KRAKEN'
            ,'SOLUSD'
            ,1
            ,220.19
@@ -231,7 +231,7 @@ INSERT INTO [dbo].[tblAssetWatch]
            ,200.0)
 
 
-if not exists (select * from tblAssetWatch where aswSourceId='ASS_KRAKEN' and aswPair='CROUSD')
+if not exists (select * from tblAssetWatch where aswSourceId='AST_KRAKEN' and aswPair='CROUSD')
 INSERT INTO [dbo].[tblAssetWatch]
            ([aswSourceId]
            ,[aswPair]
@@ -241,7 +241,7 @@ INSERT INTO [dbo].[tblAssetWatch]
            ,[aswPriceTakeProfit]
            ,[aswPriceStopLoss])
      VALUES
-           ('ASS_KRAKEN'
+           ('AST_KRAKEN'
            ,'CROUSD'
            ,1
            ,0.255

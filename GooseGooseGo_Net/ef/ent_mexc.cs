@@ -11,6 +11,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Net.Http;
 using System.Threading.Tasks;
+using static GooseGooseGo_Net.ef.ent_asset;
 
 namespace GooseGooseGo_Net.ef
 {
@@ -25,16 +26,20 @@ namespace GooseGooseGo_Net.ef
         private readonly ILogger<mApp> _logger;
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly string _encryptionKey;
+        private readonly cApiDetails? _apiDetails;
 
         public ent_mexc(
             IConfiguration conf,
             ILogger<mApp> logger,
-            IHttpClientFactory httpClientFactory)
+            IHttpClientFactory httpClientFactory,
+            dbContext _dbCon
+            )
         {
             _conf = conf;
             _logger = logger;
             _httpClientFactory = httpClientFactory;
             _encryptionKey = conf.GetSection("Encryption").GetValue<string>("EncryptionKey") ?? "";
+             _apiDetails = doApiDetailsDecrypt(_dbCon!)!;
         }
 
         public string doApiDetailsEncrypt(dbContext dbCon)
@@ -93,26 +98,27 @@ namespace GooseGooseGo_Net.ef
             return ret;
         }
 
-        public async Task<List<MexcTickerEntry>?> doApi_TickerListAsync(cApiDetails apiDetails)
+        public async Task<List<MexcTickerEntry>?> doApi_TickerListAsync(dbContext _dbCon)
         {
-            cMexcAPIParms p = new cMexcAPIParms
+            cApiParms p = new cApiParms
             {
                 apMethod = "GET",
                 apPath = "/api/v3/ticker/24hr"
             };
-            string retJson = await doApi_Base(p, apiDetails);
+            string retJson = await doApi_Base(p, _dbCon);
 
             var ret = JsonSerializer.Deserialize<List<MexcTickerEntry>>(retJson);
 
             return ret;
         }
 
-        public async Task<string> doApi_Base(cMexcAPIParms p, cApiDetails apiDetails)
+        public async Task<string> doApi_Base(cApiParms p, dbContext _dbCon)
         {
             string ret = null!;
             Dictionary<string, string>? query = null;
             Dictionary<string, object>? body = null;
-            string environment = apiDetails.apidet_api_url;
+            
+            string environment = _apiDetails!.apidet_api_url;
             if (string.IsNullOrWhiteSpace(environment))
                 throw new ArgumentException("Environment (base URL) is required.", nameof(environment));
 
@@ -129,8 +135,8 @@ namespace GooseGooseGo_Net.ef
 
             string bodyStr = "";
 
-            var signature = GetSignature(apiDetails.apidet_secret, queryStr);
-            url = $"{apiDetails.apidet_api_url}{p.apPath}?{queryStr}&signature={signature}";
+            var signature = GetSignature(_apiDetails!.apidet_secret, queryStr);
+            url = $"{_apiDetails!.apidet_api_url}{p.apPath}?{queryStr}&signature={signature}";
             var request = new HttpRequestMessage(new HttpMethod(p.apMethod), url);
 
             if (body is { Count: > 0 })
@@ -138,7 +144,7 @@ namespace GooseGooseGo_Net.ef
                 bodyStr = JsonSerializer.Serialize(body);
                 request.Content = new StringContent(bodyStr, Encoding.UTF8, "application/json");
             }
-            request.Headers.Add("X-MEXC-APIKEY", apiDetails.apidet_key);
+            request.Headers.Add("X-MEXC-APIKEY", _apiDetails!.apidet_key);
 
             var client = _httpClientFactory.CreateClient();
             var response = await client.SendAsync(request);
@@ -346,12 +352,6 @@ namespace GooseGooseGo_Net.ef
         public decimal kapsEndVolume { get; set; } = 0.0M;
         public DateTime kapsStartRetrievedAt { get; set; }
         public DateTime kapsEndRetrievedAt { get; set; }
-    }
-
-    public class cMexcAPIParms
-    {
-        public string apMethod { get; set; } = "GET";
-        public string apPath { get; set; } = "";
     }
 
     public sealed record MexcEnvelope<T>(

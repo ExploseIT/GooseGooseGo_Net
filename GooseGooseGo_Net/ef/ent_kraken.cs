@@ -1,4 +1,6 @@
+
 using GooseGooseGo_Net.Models;
+using GooseGooseGo_Net.ef;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Data.SqlClient;
@@ -11,6 +13,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Net.Http;
 using System.Threading.Tasks;
+using static GooseGooseGo_Net.ef.ent_asset;
 
 namespace GooseGooseGo_Net.ef
 {
@@ -25,16 +28,20 @@ namespace GooseGooseGo_Net.ef
         private readonly ILogger<mApp> _logger;
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly string _encryptionKey;
+        private readonly cApiDetails? _apiDetails;
 
         public ent_kraken(
             IConfiguration conf,
             ILogger<mApp> logger,
-            IHttpClientFactory httpClientFactory)
+            IHttpClientFactory httpClientFactory,
+            dbContext _dbCon
+            )
         {
             _conf = conf;
             _logger = logger;
             _httpClientFactory = httpClientFactory;
             _encryptionKey = conf.GetSection("Encryption").GetValue<string>("EncryptionKey") ?? "";
+            _apiDetails = doApiDetailsDecrypt(_dbCon!)!;
         }
 
         public string doApiDetailsEncrypt(dbContext dbCon)
@@ -93,26 +100,28 @@ namespace GooseGooseGo_Net.ef
             return ret;
         }
 
-        public async Task<KrakenEnvelope<Dictionary<string, KrakenTickerEntry>>?> doApi_TickerListAsync(cApiDetails apiDetails)
+        public async Task<KrakenEnvelope<Dictionary<string, KrakenTickerEntry>>?> doApi_TickerListAsync(dbContext _dbCon)
         {
-            cKrakenAPIParms p = new cKrakenAPIParms
+            cApiParms p = new cApiParms
             {
                 apMethod = "GET",
-                apPath = "/0/public/Ticker"
+                apPath = "/0/public/Ticker",
+                apDoSign = false
             };
-            string retJson = await doApi_Base(p, apiDetails);
+            string retJson = await doApi_Base(p, _dbCon);
 
             var ret = JsonSerializer.Deserialize<KrakenEnvelope<Dictionary<string, KrakenTickerEntry>>?>(retJson);
 
             return ret;
         }
 
-        public async Task<string> doApi_Base(cKrakenAPIParms p, cApiDetails apiDetails)
+        public async Task<string> doApi_Base(cApiParms p, dbContext _dbCon)
         {
             string ret = null!;
             Dictionary<string, string>? query = null;
             Dictionary<string, object>? body = null;
-            string environment = apiDetails.apidet_api_url;
+
+            string environment = _apiDetails!.apidet_api_url;
             if (string.IsNullOrWhiteSpace(environment))
                 throw new ArgumentException("Environment (base URL) is required.", nameof(environment));
 
@@ -127,7 +136,7 @@ namespace GooseGooseGo_Net.ef
             }
 
             string nonce = "";
-            if (!string.IsNullOrEmpty(apiDetails.apidet_key))
+            if (!string.IsNullOrEmpty(_apiDetails!.apidet_key))
             {
                 body ??= new Dictionary<string, object>(StringComparer.Ordinal);
                 if (!body.TryGetValue("nonce", out _))
@@ -150,10 +159,10 @@ namespace GooseGooseGo_Net.ef
                 request.Content = new StringContent(bodyStr, Encoding.UTF8, "application/json");
             }
 
-            if (!string.IsNullOrEmpty(apiDetails.apidet_key))
+            if (!string.IsNullOrEmpty(_apiDetails!.apidet_key))
             {
-                request.Headers.Add("API-Key", apiDetails.apidet_key);
-                var sig = GetSignature(apiDetails.apidet_key, data: queryStr + bodyStr, nonce: nonce, path: p.apPath);
+                request.Headers.Add("API-Key", _apiDetails!.apidet_key);
+                var sig = GetSignature(_apiDetails!.apidet_key, data: queryStr + bodyStr, nonce: nonce, path: p.apPath);
                 request.Headers.Add("API-Sign", sig);
             }
 
@@ -377,11 +386,6 @@ namespace GooseGooseGo_Net.ef
         public DateTime kapsEndRetrievedAt { get; set; }
     }
 
-    public class cKrakenAPIParms
-    {
-        public string apMethod { get; set; } = "GET";
-        public string apPath { get; set; } = "";
-    }
 
     public sealed record KrakenEnvelope<T>(
         [property: JsonPropertyName("error")] List<string> Error,

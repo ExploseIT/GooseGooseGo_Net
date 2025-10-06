@@ -36,27 +36,20 @@ namespace GooseGooseGo_Net.Controllers
             mApp _m_App = new mApp(_hc, this.Request, this.RouteData, _dbCon, _conf, _env, _logger);
 
             var _e_cmcap = new ent_cmcap(_conf, _dbCon);
-            var _e_kraken = new ent_kraken(_conf, _logger, _httpClientFactory);
-            var _e_mexc = new ent_mexc(_conf, _logger, _httpClientFactory);
+            var _e_kraken = new ent_kraken(_conf, _logger, _httpClientFactory, _dbCon);
+            var _e_mexc = new ent_mexc(_conf, _logger, _httpClientFactory, _dbCon);
+            var _e_cryptocom = new ent_cryptocom(_conf, _logger, _httpClientFactory, _dbCon);
 
-            var apiDetailsMexc = _e_mexc.doApiDetailsDecrypt(_dbCon);
-
-            var apiDetailsKraken = _e_kraken.doApiDetailsDecrypt(_dbCon);
-
-            List<MexcTickerEntry>? mexcData = await _e_mexc.doApi_TickerListAsync(apiDetailsMexc!);
-
-            KrakenEnvelope<Dictionary<string, KrakenTickerEntry>>? krakenData = await _e_kraken.doApi_TickerListAsync(apiDetailsKraken!);
+            List<MexcTickerEntry>? mexcData = await _e_mexc.doApi_TickerListAsync(_dbCon);
+            KrakenEnvelope<Dictionary<string, KrakenTickerEntry>>? krakenData = await _e_kraken.doApi_TickerListAsync(_dbCon);
+            cReturnedCryptoCom? cryptocomData = await _e_cryptocom.doApi_TickerListAsync(_dbCon);
 
             string json_cmc = await _e_cmcap.doAPIQuery();
 
 
             _m_App._krakenData = krakenData;
 
-            var all = await CryptoComClient.GetTickersAsync(_conf);
-
-            _m_App._cryptocomData = all;
-
-
+            
             return View(_m_App);
         }
 

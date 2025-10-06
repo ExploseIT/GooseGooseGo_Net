@@ -1,13 +1,12 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿
+
+using Microsoft.EntityFrameworkCore;
 using System.ComponentModel.DataAnnotations;
 
 namespace GooseGooseGo_Net.ef
 {
     public class ent_asset
     {
-
-
-
         public class cAsset
         {
             [Key]
@@ -35,5 +34,13 @@ namespace GooseGooseGo_Net.ef
                 return new DateTime(dt.Year, dt.Month, dt.Day, dt.Hour, dt.Minute, dt.Second);
             }
         }
+
+        public class cApiParms
+        {
+            public string apMethod { get; set; } = "GET";
+            public string apPath { get; set; } = "";
+            public bool apDoSign { get; set; } = false;
+        }
+
     }
 }
