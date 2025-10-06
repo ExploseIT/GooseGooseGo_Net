@@ -39,7 +39,9 @@ namespace GooseGooseGo_Net.Controllers
             var _e_kraken = new ent_kraken(_conf, _logger, _httpClientFactory, _dbCon);
             var _e_mexc = new ent_mexc(_conf, _logger, _httpClientFactory, _dbCon);
             var _e_cryptocom = new ent_cryptocom(_conf, _logger, _httpClientFactory, _dbCon);
+            var _e_kucoin = new ent_kucoin(_conf, _logger, _httpClientFactory, _dbCon);
 
+            cReturnedKucoin? kucoinData = await _e_kucoin.doApi_TickerListAsync(_dbCon);
             List<MexcTickerEntry>? mexcData = await _e_mexc.doApi_TickerListAsync(_dbCon);
             KrakenEnvelope<Dictionary<string, KrakenTickerEntry>>? krakenData = await _e_kraken.doApi_TickerListAsync(_dbCon);
             cReturnedCryptoCom? cryptocomData = await _e_cryptocom.doApi_TickerListAsync(_dbCon);
