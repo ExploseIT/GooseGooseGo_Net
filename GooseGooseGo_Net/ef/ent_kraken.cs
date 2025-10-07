@@ -199,239 +199,98 @@ namespace GooseGooseGo_Net.ef
             => string.Join("&", query.Select(kv =>
                 $"{Uri.EscapeDataString(kv.Key)}={Uri.EscapeDataString(kv.Value)}"));
 
-        // --- DB-Related Methods ---
+        // --- Model Classes ---
 
-        public cKrakenAssetInfo? doKrakenGetNextId(dbContext dbCon)
+    }
+
+        public class cKraken
         {
-            try
+            [Key]
+            public int kaId { get; set; }
+            public int kaIndex { get; set; }
+            public string kaPair { get; set; } = "";
+            [Precision(18, 5)]
+            public decimal kaLastTrade { get; set; }
+            [Precision(18, 5)]
+            public decimal? kaOpen { get; set; }
+            [Precision(18, 5)]
+            public decimal? kaBid { get; set; }
+            [Precision(18, 5)]
+            public decimal? kaAsk { get; set; }
+            [Precision(18, 5)]
+            public decimal? kaHigh24h { get; set; }
+            [Precision(18, 5)]
+            public decimal? kaLow24h { get; set; }
+            [Precision(18, 5)]
+            public decimal? kaVolume24h { get; set; }
+            public DateTime kaRetrievedAt { get; set; }
+            public DateTime kaRetrievedAtSanitised()
             {
-                SqlParameter[] lParams = { };
-                string sp = "spKrakenAssetInfoNextId";
-                var retSP = dbCon.lKrakenAssetInfo.FromSqlRaw(sp, lParams).AsEnumerable();
-                return retSP.FirstOrDefault();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error in doKrakenGetNextId");
-                return null;
+                var dt = this.kaRetrievedAt.ToLocalTime();
+                return new DateTime(dt.Year, dt.Month, dt.Day, dt.Hour, dt.Minute, dt.Second);
             }
         }
 
-        public cKraken? doKrakenUpdateById(dbContext dbCon, cKraken p)
+
+        public class cKrakenInfo
         {
-            try
-            {
-                SqlParameter[] lParams = {
-                    new SqlParameter("@kaId", SqlDbType.Int) { Value = p.kaId },
-                    new SqlParameter("@kaIndex", SqlDbType.Int) { Value = p.kaIndex },
-                    new SqlParameter("@kaPair", SqlDbType.NVarChar) { Value = p.kaPair },
-                    new SqlParameter("@kaLastTrade", SqlDbType.Decimal) { Value = p.kaLastTrade },
-                    new SqlParameter("@kaOpen", SqlDbType.Decimal) { Value = p.kaOpen ?? (object)DBNull.Value },
-                    new SqlParameter("@kaBid", SqlDbType.Decimal) { Value = p.kaBid ?? (object)DBNull.Value },
-                    new SqlParameter("@kaAsk", SqlDbType.Decimal) { Value = p.kaAsk ?? (object)DBNull.Value },
-                    new SqlParameter("@kaHigh24h", SqlDbType.Decimal) { Value = p.kaHigh24h ?? (object)DBNull.Value },
-                    new SqlParameter("@kaLow24h", SqlDbType.Decimal) { Value = p.kaLow24h ?? (object)DBNull.Value },
-                    new SqlParameter("@kaVolume24h", SqlDbType.Decimal) { Value = IsDbNull(p.kaVolume24h) },
-                    new SqlParameter("@kaRetrievedAt", SqlDbType.DateTime) { Value = p.kaRetrievedAtSanitised() }
-                };
-                string sp = "spKrakenUpdateById @kaId,@kaIndex,@kaPair,@kaLastTrade,@kaOpen,@kaBid,@kaAsk,@kaHigh24h,@kaLow24h,@kaVolume24h,@kaRetrievedAt";
-                var retSP = dbCon.lKraken.FromSqlRaw(sp, lParams).AsEnumerable();
-                return retSP.FirstOrDefault();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error in doKrakenUpdateById");
-                return null;
-            }
+            [Key]
+            public string kaPair { get; set; } = "";
+            [Precision(18, 5)]
+            public decimal kaMinLastTrade { get; set; } = 0.0M;
+            [Precision(18, 5)]
+            public decimal kaMaxLastTrade { get; set; } = 0.0M;
+            [Precision(18, 5)]
+            public decimal kaHigh24h { get; set; } = 0.0M;
+            [Precision(18, 5)]
+            public decimal kaLow24h { get; set; } = 0.0M;
+            [Precision(18, 5)]
+            public decimal kaVolume24h { get; set; } = 0.0M;
+            public DateTime kaRetrievedAt { get; set; } = DateTime.Now;
         }
 
-        public ApiResponse<List<cKrakenInfo>?> doKrakenInfoList(dbContext dbCon)
+
+
+
+        public sealed record KrakenEnvelope<T>(
+            [property: JsonPropertyName("error")] List<string> Error,
+            [property: JsonPropertyName("result")] T? Result
+        );
+
+        public sealed class KrakenTickerEntry
         {
-            var ret = new ApiResponse<List<cKrakenInfo>?>();
-            try
-            {
-                SqlParameter[] lParams = {};
-                string sp = "spKrakenInfoList";
-                var retSP = dbCon.lKrakenInfoList.FromSqlRaw(sp, lParams).AsEnumerable();
-                ret.apiData = retSP?.ToList() ?? new List<cKrakenInfo>();
-                ret.apiSuccess = true;
-            }
-            catch (Exception ex)
-            {
-                ret.apiSuccess = false;
-                ret.apiMessage = ex.Message + (ex.InnerException != null ? " : " + ex.InnerException.Message : "");
-                _logger.LogError(ex, "Error in doKrakenInfoList");
-            }
-            return ret;
+            [JsonPropertyName("a")] public string[]? Ask { get; set; }
+            [JsonPropertyName("b")] public string[]? Bid { get; set; }
+            [JsonPropertyName("c")] public string[]? LastTrade { get; set; }
+            [JsonPropertyName("v")] public string[]? Volume { get; set; }
+            [JsonPropertyName("p")] public string[]? Vwap { get; set; }
+            [JsonPropertyName("t")] public int[]? Trades { get; set; }
+            [JsonPropertyName("l")] public string[]? Low { get; set; }
+            [JsonPropertyName("h")] public string[]? High { get; set; }
+            [JsonPropertyName("o")] public string? Open { get; set; }
         }
 
-        public ApiResponse<List<cKrakenPercentageSwing>?> doKrakenPercentageSwingList(dbContext dbCon, cKrakenPercentageSwingParms p)
-        {
-            var ret = new ApiResponse<List<cKrakenPercentageSwing>?>();
-            try
-            {
-                SqlParameter[] lParams = {
-                    new SqlParameter("@kapsMinSwing", SqlDbType.Decimal) { Value = p.kapsMinSwing },
-                    new SqlParameter("@kapsPeriodValue", SqlDbType.Int) { Value = p.kapsPeriodValue },
-                    new SqlParameter("@kapsPeriodUnit", SqlDbType.NVarChar) { Value = p.kapsPeriodUnit },
-                    new SqlParameter("@kapsRowCount", SqlDbType.Int) { Value = p.kapsRowCount },
-                    new SqlParameter("@kapsPeriodOffset", SqlDbType.Int) { Value = p.kapsPeriodOffset }
-                };
-                string sp = "spKrakenRollingPercentSwing @kapsMinSwing, @kapsPeriodValue, @kapsPeriodUnit, @kapsRowCount, @kapsPeriodOffset";
-                var retSP = dbCon.lKrakenPercentageSwing.FromSqlRaw(sp, lParams).AsEnumerable();
-                ret.apiData = retSP?.ToList() ?? new List<cKrakenPercentageSwing>();
-                ret.apiSuccess = true;
-            }
-            catch (Exception ex)
-            {
-                ret.apiSuccess = false;
-                ret.apiMessage = ex.Message + (ex.InnerException != null ? " : " + ex.InnerException.Message : "");
-         _logger.LogError(ex, "Error in doKrakenPercentageSwingList");
-            }
-            return ret;
-        }
-    }
+        public sealed record TickerRow(
+            string Pair,
+            decimal Last,
+            decimal Open,
+            decimal ChangePct,
+            decimal Bid,
+            decimal Ask,
+            decimal High24h,
+            decimal Low24h,
+            string Volume24h
+        );
 
-    // --- Model Classes ---
+        public sealed record OhlcCandle(
+            long Time,
+            decimal Open,
+            decimal High,
+            decimal Low,
+            decimal Close,
+            decimal Vwap,
+            decimal Volume,
+            int Count
+        );
 
-    public class cAssetWatch
-    {
-        [Key]
-        public int aswId { get; set; }
-        public string aswSource { get; set; } = "";
-        public string aswPair { get; set; } = "";
-    }
-
-    public class cKrakenAssetInfo
-    {
-        [Key]
-        public int kaiId { get; set; }
-        public DateTime kaiDT { get; set; }
-    }
-
-    public class cKraken
-    {
-        [Key]
-        public int kaId { get; set; }
-        public int kaIndex { get; set; }
-        public string kaPair { get; set; } = "";
-        [Precision(18, 5)]
-        public decimal kaLastTrade { get; set; }
-        [Precision(18, 5)]
-        public decimal? kaOpen { get; set; }
-        [Precision(18, 5)]
-        public decimal? kaBid { get; set; }
-        [Precision(18, 5)]
-        public decimal? kaAsk { get; set; }
-        [Precision(18, 5)]
-        public decimal? kaHigh24h { get; set; }
-        [Precision(18, 5)]
-        public decimal? kaLow24h { get; set; }
-        [Precision(18, 5)]
-        public decimal? kaVolume24h { get; set; }
-        public DateTime kaRetrievedAt { get; set; }
-        public DateTime kaRetrievedAtSanitised()
-        {
-            var dt = this.kaRetrievedAt.ToLocalTime();
-            return new DateTime(dt.Year, dt.Month, dt.Day, dt.Hour, dt.Minute, dt.Second);
-        }
-    }
-
-    public class cKrakenPercentageSwingParms
-    {
-        [Precision(18, 5)]
-        public decimal kapsMinSwing { get; set; } = 0.0M;
-        public int kapsPeriodValue { get; set; } = 0;
-        public string kapsPeriodUnit { get; set; } = "";
-        public int kapsRowCount { get; set; } = 5;
-        public int kapsPeriodOffset { get; set; } = 0;
-    }
-
-    public class cKrakenInfo
-    {
-        [Key]
-        public string kaPair { get; set; } = "";
-        [Precision(18, 5)]
-        public decimal kaMinLastTrade { get; set; } = 0.0M;
-        [Precision(18, 5)]
-        public decimal kaMaxLastTrade { get; set; } = 0.0M;
-        [Precision(18, 5)]
-        public decimal kaHigh24h { get; set; } = 0.0M;
-        [Precision(18, 5)]
-        public decimal kaLow24h { get; set; } = 0.0M;
-        [Precision(18, 5)]
-        public decimal kaVolume24h { get; set; } = 0.0M;
-        public DateTime kaRetrievedAt { get; set; } = DateTime.Now;
-    }    
-
-    public class cKrakenPercentageSwing
-    {
-        [Key]
-        public string kapsPair { get; set; } = "";
-        [Precision(18, 5)]
-        public decimal kapsStartTrade { get; set; } = 0.0M;
-        [Precision(18, 5)]
-        public decimal kapsEndTrade { get; set; } = 0.0M;
-        [Precision(18, 5)]
-        public decimal kapsTradeDiffPercent { get; set; } = 0.0M;
-        [Precision(18, 5)]
-        public decimal kapsTradeDiff { get; set; } = 0.0M;
-        [Precision(18, 5)]
-        public decimal kapsTradeDiffAbs { get; set; } = 0.0M;
-        [Precision(18, 5)]
-        public decimal kapsStartVolume { get; set; } = 0.0M;
-        [Precision(18, 5)]
-        public decimal kapsEndVolume { get; set; } = 0.0M;
-        public DateTime kapsStartRetrievedAt { get; set; }
-        public DateTime kapsEndRetrievedAt { get; set; }
-    }
-
-
-    public sealed record KrakenEnvelope<T>(
-        [property: JsonPropertyName("error")] List<string> Error,
-        [property: JsonPropertyName("result")] T? Result
-    );
-
-    public sealed class KrakenTickerEntry
-    {
-        [JsonPropertyName("a")] public string[]? Ask { get; set; }
-        [JsonPropertyName("b")] public string[]? Bid { get; set; }
-        [JsonPropertyName("c")] public string[]? LastTrade { get; set; }
-        [JsonPropertyName("v")] public string[]? Volume { get; set; }
-        [JsonPropertyName("p")] public string[]? Vwap { get; set; }
-        [JsonPropertyName("t")] public int[]? Trades { get; set; }
-        [JsonPropertyName("l")] public string[]? Low { get; set; }
-        [JsonPropertyName("h")] public string[]? High { get; set; }
-        [JsonPropertyName("o")] public string? Open { get; set; }
-    }
-
-    public sealed record TickerRow(
-        string Pair,
-        decimal Last,
-        decimal Open,
-        decimal ChangePct,
-        decimal Bid,
-        decimal Ask,
-        decimal High24h,
-        decimal Low24h,
-        string Volume24h
-    );
-
-    public sealed record OhlcCandle(
-        long Time,
-        decimal Open,
-        decimal High,
-        decimal Low,
-        decimal Close,
-        decimal Vwap,
-        decimal Volume,
-        int Count
-    );
-
-    public class cApiDetails
-    {
-        public string apidet_api_url { get; set; } = "";
-        public string apidet_key { get; set; } = "";
-        public string apidet_secret { get; set; } = "";
-    }
 }

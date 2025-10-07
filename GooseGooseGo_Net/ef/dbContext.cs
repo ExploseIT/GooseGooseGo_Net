@@ -30,15 +30,10 @@ namespace GooseGooseGo_Net.ef
         public DbSet<ent_page> lPage { get; set; }
         public DbSet<cPageData> lPageData { get; set; }
         public DbSet<cPageContent> lPageContent { get; set; }
-        public DbSet<cKraken> lKraken { get; set; }
-        public DbSet<cKrakenAssetInfo> lKrakenAssetInfo { get; set; }
-        public DbSet<cKrakenPercentageSwing> lKrakenPercentageSwing { get; set; }
-        public DbSet<cKrakenInfo> lKrakenInfoList { get; set; }
-        public DbSet<cMexc> lMexc { get; set; }
-        public DbSet<cMexcAssetInfo> lMexcAssetInfo { get; set; }
-        public DbSet<cMexcPercentageSwing> lMexcPercentageSwing { get; set; }
-        public DbSet<cMexcInfo> lMexcInfoList { get; set; }
-
+        public DbSet<cAsset> lAssetList { get; set; }
+        public DbSet<cAssetPercentageSwing> lAssetPercentageSwing { get; set; }
+        public DbSet<cAssetInfo> lAssetInfoList { get; set; }
+        public DbSet<cAssetAssetInfo> lAssetAssetInfoList { get; set; }
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
             if (!optionsBuilder.IsConfigured)

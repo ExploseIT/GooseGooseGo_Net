@@ -31,6 +31,7 @@ namespace GooseGooseGo_Net.Services
                 var _conf = scope.ServiceProvider.GetRequiredService<IConfiguration>();
                 var _dbCon = scope.ServiceProvider.GetRequiredService<dbContext>();
 
+                var e_asset = new ent_asset(_conf, _logger, _httpClientFactory, _dbCon);
                 var e_kraken = new ent_kraken(_conf, _logger, _httpClientFactory,_dbCon);
                 var e_mexc = new ent_mexc(_conf, _logger, _httpClientFactory, _dbCon);
                 var e_cryptocom = new ent_cryptocom(_conf, _logger, _httpClientFactory, _dbCon);
@@ -42,36 +43,37 @@ namespace GooseGooseGo_Net.Services
                 
 
                 var now = DateTime.UtcNow;
-                cKrakenAssetInfo kai = new cKrakenAssetInfo();
+                cAssetAssetInfo assassInfo = new cAssetAssetInfo();
                 
                 try
                 {
                     if (krakenData?.Result != null)
                     {
-                        kai = e_kraken.doKrakenGetNextId(_dbCon)!;
+                        assassInfo = e_asset.doAssetGetNextId(_dbCon)!;
 
                         foreach (var kvp in krakenData.Result)
                         {
                             var entry = kvp.Value;
                             decimal c_dec = 0.0M;
-                            var asset = new cKraken
+                            if (kvp.Key.EndsWith("USD", StringComparison.OrdinalIgnoreCase))
                             {
-                                kaId = 0, // Assuming 0 means new entry; adjust as needed
-                                kaIndex = kai.kaiId,
-                                kaPair = kvp.Key,
-                                kaLastTrade = entry.LastTrade != null && entry.LastTrade.Length > 0 ? decimal.Parse(entry.LastTrade[0]) : 0,
-                                kaOpen = entry.Open != null ? decimal.Parse(entry.Open) : (decimal?)null,
-                                kaBid = entry.Bid != null && entry.Bid.Length > 0 ? decimal.Parse(entry.Bid[0]) : (decimal?)null,
-                                kaAsk = entry.Ask != null && entry.Ask.Length > 0 ? decimal.Parse(entry.Ask[0]) : (decimal?)null,
-                                kaHigh24h = entry.High != null && entry.High.Length > 1 ? decimal.Parse(entry.High[1]) : (decimal?)null,
-                                kaLow24h = entry.Low != null && entry.Low.Length > 1 ? decimal.Parse(entry.Low[1]) : (decimal?)null,
-                                kaVolume24h = decimal.TryParse(entry.Volume![1], out c_dec) ? c_dec: null,
-                                kaRetrievedAt = now
+                                var asset = new cAsset
+                                {
+                                    assId = 0, // Assuming 0 means new entry; adjust as needed
+                                    assIndex = assassInfo.asiId,
+                                    assExchange = "exc_kraken",
+                                    assPair = kvp.Key,
+                                    assLastTrade = entry.LastTrade != null && entry.LastTrade.Length > 0 ? decimal.Parse(entry.LastTrade[0]) : 0,
+                                    assOpen = entry.Open != null ? decimal.Parse(entry.Open) : (decimal?)null,
+                                    assBid = entry.Bid != null && entry.Bid.Length > 0 ? decimal.Parse(entry.Bid[0]) : (decimal?)null,
+                                    assAsk = entry.Ask != null && entry.Ask.Length > 0 ? decimal.Parse(entry.Ask[0]) : (decimal?)null,
+                                    assHigh24h = entry.High != null && entry.High.Length > 1 ? decimal.Parse(entry.High[1]) : (decimal?)null,
+                                    assLow24h = entry.Low != null && entry.Low.Length > 1 ? decimal.Parse(entry.Low[1]) : (decimal?)null,
+                                    assVolume24h = decimal.TryParse(entry.Volume![1], out c_dec) ? c_dec: null,
+                                    assRetrievedAt = now
 
-                            };
-                            if (asset.kaPair.EndsWith("USD", StringComparison.OrdinalIgnoreCase))
-                            {
-                                e_kraken.doKrakenUpdateById(_dbCon, asset);
+                                };
+                                e_asset.doAssetUpdateById(_dbCon, asset);
                             }
                         }
                     }
@@ -81,15 +83,15 @@ namespace GooseGooseGo_Net.Services
                     exc = e;
                 }
 
-                var p_kps = new cKrakenPercentageSwingParms
+                var p_kps = new cAssetPercentageSwingParms
                 {
-                    kapsMinSwing = 0.010M,
-                    kapsPeriodValue = 5,
-                    kapsPeriodUnit = "minute",
-                    kapsPeriodOffset = 0
+                    aspspMinSwing = 0.010M,
+                    aspspPeriodValue = 5,
+                    aspspPeriodUnit = "minute",
+                    aspspPeriodOffset = 0
                 };
 
-                var clkps = e_kraken.doKrakenPercentageSwingList(_dbCon, p_kps);
+                var clkps = e_asset.doAssetPercentageSwingList(_dbCon, p_kps);
             }
 
         }

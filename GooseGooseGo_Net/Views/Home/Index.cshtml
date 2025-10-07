@@ -12,10 +12,10 @@
 <div class="container text-center">
   <div class="row">
     <div class="col text-start">
-      <b>Kraken USD asset count <span class="text-primary" id="span_kraken_item_count"></span></b>
+      <b>Kraken USD asset count <span class="text-primary" id="span_asset_item_count"></span></b>
     </div>
     <div class="col">
-      <b>Date / time <span class="text-primary" id="span_kraken_date_time"></span></b>
+      <b>Date / time <span class="text-primary" id="span_asset_date_time"></span></b>
     </div>
     <div class="col">
     &nbsp;
@@ -26,7 +26,7 @@
   </div>
 </div>
 
-<table id="tab_kps">
+<table id="tab_aps">
     <thead>
          <tr>
             <th>Pair</th>
@@ -35,7 +35,7 @@
         </tr>
     </thead>
 
-    <tbody id="tb_kps">
+    <tbody id="tb_aps">
 
     </tbody>
 </table>
@@ -62,45 +62,45 @@
 
 
     function doDataRead() {
-        let p_kps = {
-            kapsMinSwing: 0.010,
-            kapsPeriodValue:  5,
-            kapsPeriodUnit:  "minute",
-            kapsRowCount: 20,
-            kapsPeriodOffset:  0
+        let p_aps = {
+            aspspMinSwing: 0.010,
+            aspspPeriodValue:  5,
+            aspspPeriodUnit:  "minute",
+            aspspRowCount: 20,
+            aspspPeriodOffset:  0
             };
         
-        doApiPost(doDataReadContinueSwingList, p_kps, "api/doKrakenPercentageSwingList");
+        doApiPost(doDataReadContinueSwingList, p_aps, "api/doAssetPercentageSwingList");
     }
 
-    var l_kps = null;
-    var l_k_info = null;
+    var l_aps = null;
+    var l_a_info = null;
 
     function doDataReadContinueSwingList(ret) {
-        l_kps = ret.data.apiData;
-        doApiPost(doDataReadContinueInfoList, null, "api/doKrakenInfoList");
+        l_aps = ret.data.apiData;
+        doApiPost(doDataReadContinueInfoList, null, "api/doAssetInfoList");
     }
 
     function doDataReadContinueInfoList(ret) {
             // Continuation code here
-            let l_k_info = ret.data.apiData;
-            $("#span_kraken_item_count").text(l_k_info.length);
-            let dt = l_k_info[0].kaRetrievedAt;
+            l_a_info = ret.data.apiData;
+            $("#span_asset_item_count").text(l_a_info.length);
+            let dt = l_a_info[0].assRetrievedAt;
             let dtStr = dt.replace('T', ' ');
-            $("#span_kraken_date_time").text(dtStr);
-            $("#tb_kps").empty();
+            $("#span_asset_date_time").text(dtStr);
+            $("#tb_aps").empty();
             
-            if (l_kps != null) {
-                for (let i = 0; i < l_kps.length; i++) {
-                    let kp = l_kps[i];
+            if (l_aps != null) {
+                for (let i = 0; i < l_aps.length; i++) {
+                    let ap = l_aps[i];
                     let tr = $("<tr></tr>");
-                    let td_pair = $("<td></td>").text(kp.kapsPair);
-                    let td_price = $("<td></td>").text(kp.kapsEndTrade+ " USD");
-                    let td_change = $("<td></td>").text((kp.kapsTradeDiffPercent).toFixed(2) + "%");
+                    let td_pair = $("<td></td>").text(ap.asspsPair);
+                    let td_price = $("<td></td>").text(ap.asspsEndTrade+ " USD");
+                    let td_change = $("<td></td>").text((ap.asspsTradeDiffPercent).toFixed(2) + "%");
                     tr.append(td_pair);
                     tr.append(td_price);
                     tr.append(td_change);
-                    $("#tb_kps").append(tr);
+                    $("#tb_aps").append(tr);
                 }
             }
     }

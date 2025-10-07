@@ -26,17 +26,17 @@ namespace GooseGooseGo_Net.Controllers
             _httpClientFactory = httpClientFactory;
         }
 
-        [HttpPost("doKrakenPercentageSwingList")]
-        public ApiResponse<List<cKrakenPercentageSwing>?> doKrakenPercentageSwingList(cKrakenPercentageSwingParms p)
+        [HttpPost("doAssetPercentageSwingList")]
+        public ApiResponse<List<cAssetPercentageSwing>?> doAssetPercentageSwingList(cAssetPercentageSwingParms p)
         {
-            var ret = new ent_kraken(_conf, _logger, _httpClientFactory, _dbCon).doKrakenPercentageSwingList(_dbCon, p);
+            var ret = new ent_asset(_conf, _logger, _httpClientFactory, _dbCon).doAssetPercentageSwingList(_dbCon, p);
             return ret;
         }
 
-        [HttpPost("doKrakenInfoList")]
-        public ApiResponse<List<cKrakenInfo>?> doKrakenInfoList()
+        [HttpPost("doAssetInfoList")]
+        public ApiResponse<List<cAssetInfo>?> doAssetInfoList()
         {
-            var ret = new ent_kraken(_conf, _logger, _httpClientFactory, _dbCon).doKrakenInfoList(_dbCon);
+            var ret = new ent_asset(_conf, _logger, _httpClientFactory, _dbCon).doAssetInfoList(_dbCon);
             return ret;
         }
     }
