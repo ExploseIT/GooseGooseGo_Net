@@ -34,6 +34,8 @@ exec spAssetRollingPercentSwing 0, 0.010, 20, 'minute',10,1
 exec spAssetRollingPercentSwing 1, 0.010, 20, 'minute',10,2
 exec spAssetRollingPercentSwing 0, 0.010, 20, 'minute',10,2
 
+delete from tblSettings where setName like '%kraken%'
+select * from tblSettings where setName like '%kraken%'
 /*
 select * from tblAsset where kaPair = 'MUSD' and kaLastTrade >2.4 order by kaLastTrade desc
 select top 100 * from tblAsset where kaPair = 'MUSD'  order by kaId desc

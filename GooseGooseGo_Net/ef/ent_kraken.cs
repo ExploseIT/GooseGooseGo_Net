@@ -115,64 +115,80 @@ namespace GooseGooseGo_Net.ef
             return ret;
         }
 
+        public async Task<KrakenEnvelope<Dictionary<string, string>>?> doApi_AssetBalanceAsync(dbContext _dbCon)
+        {
+            cApiParms p = new cApiParms
+            {
+                apMethod = "POST",
+                apPath = "/0/private/Balance",
+                apDoSign = true
+            };
+            string retJson = await doApi_Base(p, _dbCon);
+
+            var ret = JsonSerializer.Deserialize<KrakenEnvelope<Dictionary<string, string>>?>(retJson);
+
+            return ret;
+        }
+
+        public async Task<KrakenEnvelope<KrakenTradesHistoryResult>?> doApi_TradesHistoryAsync(dbContext _dbCon)
+        {
+            cApiParms p = new cApiParms
+            {
+                apMethod = "POST",
+                apPath = "/0/private/TradesHistory",
+                apDoSign = true
+            };
+            string retJson = await doApi_Base(p, _dbCon);
+
+            var ret = JsonSerializer.Deserialize<KrakenEnvelope<KrakenTradesHistoryResult>?>(retJson);
+
+            return ret;
+        }
+
         public async Task<string> doApi_Base(cApiParms p, dbContext _dbCon)
         {
-            string ret = null!;
-            Dictionary<string, string>? query = null;
-            Dictionary<string, object>? body = null;
+            var environment = _apiDetails!.apidet_api_url!.TrimEnd('/');     // e.g. https://api.kraken.com
+            var url = environment + p.apPath;                                // /0/private/Balance
 
-            string environment = _apiDetails!.apidet_api_url;
-            if (string.IsNullOrWhiteSpace(environment))
-                throw new ArgumentException("Environment (base URL) is required.", nameof(environment));
+            // ----- form body (nonce only for Balance) -----
+            var nonce = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString();
+            var form = new List<KeyValuePair<string, string>> { new("nonce", nonce) };
+            var formBody = new FormUrlEncodedContent(form);
+            var postDataStr = await formBody.ReadAsStringAsync();            // "nonce=172...123"
 
-            var baseUri = environment.TrimEnd('/');
-            var url = new StringBuilder(baseUri).Append(p.apPath).ToString();
+            // ----- signature -----
+            // API-Sign = Base64( HMAC-SHA512( uriPath + SHA256(nonce + postdata), base64(secret) ) )
+            var sig = KrakenSign(p.apPath, postDataStr, nonce, _apiDetails!.apidet_secret!); // SECRET here
 
-            string queryStr = "";
-            if (query is { Count: > 0 })
+            var req = new HttpRequestMessage(HttpMethod.Post, url)
             {
-                queryStr = BuildQueryString(query);
-                url += "?" + queryStr;
-            }
+                Content = formBody
+            };
 
-            string nonce = "";
-            if (!string.IsNullOrEmpty(_apiDetails!.apidet_key))
+            if (p.apDoSign && !string.IsNullOrEmpty(_apiDetails!.apidet_key))
             {
-                body ??= new Dictionary<string, object>(StringComparer.Ordinal);
-                if (!body.TryGetValue("nonce", out _))
-                {
-                    nonce = GetNonce();
-                    body["nonce"] = nonce;
-                }
-                else
-                {
-                    nonce = Convert.ToString(body["nonce"]) ?? GetNonce();
-                }
-            }
-
-            string bodyStr = "";
-            var request = new HttpRequestMessage(new HttpMethod(p.apMethod), url);
-
-            if (body is { Count: > 0 })
-            {
-                bodyStr = JsonSerializer.Serialize(body);
-                request.Content = new StringContent(bodyStr, Encoding.UTF8, "application/json");
-            }
-
-            if (!string.IsNullOrEmpty(_apiDetails!.apidet_key))
-            {
-                request.Headers.Add("API-Key", _apiDetails!.apidet_key);
-                var sig = GetSignature(_apiDetails!.apidet_key, data: queryStr + bodyStr, nonce: nonce, path: p.apPath);
-                request.Headers.Add("API-Sign", sig);
+                req.Headers.Add("API-Key", _apiDetails!.apidet_key!);            // KEY here
+                req.Headers.Add("API-Sign", sig);
             }
 
             var client = _httpClientFactory.CreateClient();
-            var response = await client.SendAsync(request);
-            response.EnsureSuccessStatusCode();
-            string result = await response.Content.ReadAsStringAsync();
+            var resp = await client.SendAsync(req);
+            var ret = await resp.Content.ReadAsStringAsync();
 
-            ret = result;
+            // helpful error
+            if (!resp.IsSuccessStatusCode) throw new HttpRequestException($"{(int)resp.StatusCode} {resp.ReasonPhrase}: {ret}");
             return ret;
+        }
+
+        private static string KrakenSign(string uriPath, string postData, string nonce, string secretB64)
+        {
+            using var sha256 = SHA256.Create();
+            var hash = sha256.ComputeHash(Encoding.UTF8.GetBytes(nonce + postData));
+
+            var toSign = Encoding.UTF8.GetBytes(uriPath).Concat(hash).ToArray();
+            using var hmac = new HMACSHA512(Convert.FromBase64String(secretB64));
+            var mac = hmac.ComputeHash(toSign);
+            return Convert.ToBase64String(mac);
         }
 
         private string GetSignature(string privateKey, string data, string nonce, string path)
@@ -257,7 +273,100 @@ namespace GooseGooseGo_Net.ef
             [property: JsonPropertyName("result")] T? Result
         );
 
-        public sealed class KrakenTickerEntry
+    // ---- /0/private/TradesHistory result ----
+    public sealed class KrakenTradesHistoryResult
+    {
+        [JsonPropertyName("count")] public int Count { get; set; }
+
+        // key = trade id like "TH4B5F-BYCUB-DYBL2J"
+        [JsonPropertyName("trades")] public Dictionary<string, KrakenTrade> Trades { get; set; } = new();
+    }
+
+    public sealed class KrakenTrade
+    {
+        // ids
+        [JsonPropertyName("ordertxid")] public string? OrderTxId { get; set; }
+        [JsonPropertyName("postxid")] public string? PosTxId { get; set; }
+        [JsonPropertyName("trade_id")] public long? TradeId { get; set; }  // sometimes 0 / absent
+
+        // instrument
+        [JsonPropertyName("pair")] public string? Pair { get; set; }  // e.g., "BCHUSD"
+        [JsonPropertyName("aclass")] public string? AClass { get; set; }  // e.g., "forex"
+        [JsonPropertyName("type")] public string? Type { get; set; }  // "buy" | "sell"
+        [JsonPropertyName("ordertype")] public string? OrderType { get; set; } // "market", "limit", ...
+
+        // times
+        [JsonPropertyName("time")] public double? Time { get; set; } // epoch seconds (fractional)
+                                                                     // helper to get DateTimeOffset if you want:
+        [JsonIgnore]
+        public DateTimeOffset? TimeUtc =>
+            Time is double t ? DateTimeOffset.FromUnixTimeMilliseconds((long)(t * 1000.0)) : null;
+
+        // amounts (arrive as strings; we convert to decimals)
+        [JsonPropertyName("price")][JsonConverter(typeof(StringDecimalConverter))] public decimal? Price { get; set; }
+        [JsonPropertyName("cost")][JsonConverter(typeof(StringDecimalConverter))] public decimal? Cost { get; set; }
+        [JsonPropertyName("fee")][JsonConverter(typeof(StringDecimalConverter))] public decimal? Fee { get; set; }
+        [JsonPropertyName("vol")][JsonConverter(typeof(StringDecimalConverter))] public decimal? Volume { get; set; }
+        [JsonPropertyName("margin")][JsonConverter(typeof(StringDecimalConverter))] public decimal? Margin { get; set; }
+
+        // leverage / misc flags
+        [JsonPropertyName("leverage")] public string? Leverage { get; set; } // often "0"
+        [JsonPropertyName("maker")] public bool? Maker { get; set; } // true if maker
+        [JsonPropertyName("misc")] public string? Misc { get; set; }
+
+        // future-proof: capture any extra fields Kraken may add
+        [JsonExtensionData] public Dictionary<string, JsonElement>? Extra { get; set; }
+    }
+
+    // string-or-number -> decimal converter
+    public sealed class StringDecimalConverter : JsonConverter<decimal?>
+    {
+        public override decimal? Read(ref Utf8JsonReader reader, Type type, JsonSerializerOptions options)
+        {
+            if (reader.TokenType == JsonTokenType.Null) return null;
+            if (reader.TokenType == JsonTokenType.Number) return reader.GetDecimal();
+            if (reader.TokenType == JsonTokenType.String &&
+                decimal.TryParse(reader.GetString(), System.Globalization.NumberStyles.Any,
+                                 System.Globalization.CultureInfo.InvariantCulture, out var d))
+                return d;
+            return null;
+        }
+        public override void Write(Utf8JsonWriter writer, decimal? value, JsonSerializerOptions options)
+            => writer.WriteStringValue(value?.ToString(System.Globalization.CultureInfo.InvariantCulture));
+    }
+
+    /*
+   {
+  "error": [],
+  "result": {
+    "count": 241,
+    "trades": {
+      "TH4B5F-BYCUB-DYBL2J": {
+        "ordertxid": "OSHBUI-AFU6N-P37PNK",
+        "postxid": "TKH2SE-M7IF5-CFI7LT",
+        "pair": "BCHUSD",
+        "aclass": "forex",
+        "time": 1759960488.016865,
+        "type": "buy",
+        "ordertype": "market",
+        "price": "583.165900",
+        "cost": "4038.580000",
+        "fee": "9.692592",
+        "vol": "6.92526775",
+        "margin": "0.000000",
+        "leverage": "0",
+        "misc": "",
+        "trade_id": 0,
+        "maker": false
+      },
+     */
+
+    public sealed class KrakenTradesHistoryEntry
+    {
+
+    }
+
+    public sealed class KrakenTickerEntry
         {
             [JsonPropertyName("a")] public string[]? Ask { get; set; }
             [JsonPropertyName("b")] public string[]? Bid { get; set; }
