@@ -12,7 +12,7 @@
 <div class="container text-center">
   <div class="row">
     <div class="col text-start">
-      <b>Kraken USD asset count <span class="text-primary" id="span_asset_item_count"></span></b>
+      <b>USD/USDT asset count <span class="text-primary" id="span_asset_item_count"></span></b>
     </div>
     <div class="col">
       <b>Date / time <span class="text-primary" id="span_asset_date_time"></span></b>
@@ -25,21 +25,41 @@
         </div>
   </div>
 </div>
+<div class="row">
+    <div class="col-5">
+    <div class="col-12">Up Swing</div>
+        <table id="tab_aps_up" class="col-12">
+        <thead>
+             <tr>
+                <th>Exchange</th>
+                <th>Pair</th>
+                <th>Price</th>
+                <th>% change</th>
+            </tr>
+        </thead>
 
-<table id="tab_aps">
-    <thead>
-         <tr>
-            <th>Pair</th>
-            <th>Price</th>
-            <th>% change</th>
-        </tr>
-    </thead>
+        <tbody id="tb_aps_up">
 
-    <tbody id="tb_aps">
+        </tbody>
+    </table>
+    </div>
+    <div class="col-5">
+        <div class="col-12">Down Swing</div>
+        <table id="tab_aps_down" class="col-12">
+            <thead>
+                <tr>
+                    <th>Exchange</th>
+                    <th>Pair</th>
+                    <th>Price</th>
+                    <th>% change</th>
+                </tr>
+            </thead>
 
-    </tbody>
-</table>
-
+            <tbody id="tb_aps_down">
+            </tbody>
+        </table>
+    </div>
+</div>
 <script>
 
     $(document).ready(function () {
@@ -62,7 +82,8 @@
 
 
     function doDataRead() {
-        let p_aps = {
+        let p_aps_up = {
+            aspspUpSwing: true,
             aspspMinSwing: 0.010,
             aspspPeriodValue:  5,
             aspspPeriodUnit:  "minute",
@@ -70,37 +91,72 @@
             aspspPeriodOffset:  0
             };
         
-        doApiPost(doDataReadContinueSwingList, p_aps, "api/doAssetPercentageSwingList");
+        doApiPost(doContinueSwingListUp, p_aps_up, "api/doAssetPercentageSwingList");
     }
 
-    var l_aps = null;
+    var l_aps_up = null;
+    var l_aps_down = null;
     var l_a_info = null;
 
-    function doDataReadContinueSwingList(ret) {
-        l_aps = ret.data.apiData;
-        doApiPost(doDataReadContinueInfoList, null, "api/doAssetInfoList");
+    function doContinueSwingListUp(ret) {
+        l_aps_up = ret.data.apiData;
+        let p_aps_down = {
+            aspspUpSwing: false,
+            aspspMinSwing: 0.010,
+            aspspPeriodValue:  5,
+            aspspPeriodUnit:  "minute",
+            aspspRowCount: 20,
+            aspspPeriodOffset:  0
+            };
+
+        doApiPost(doContinueSwingListDown, p_aps_down, "api/doAssetPercentageSwingList");
     }
 
-    function doDataReadContinueInfoList(ret) {
+    function doContinueSwingListDown(ret) {
+        l_aps_down = ret.data.apiData;
+        doApiPost(doContinueInfoList, null, "api/doAssetInfoList");
+    }
+
+    function doContinueInfoList(ret) {
             // Continuation code here
             l_a_info = ret.data.apiData;
             $("#span_asset_item_count").text(l_a_info.length);
             let dt = l_a_info[0].assRetrievedAt;
             let dtStr = dt.replace('T', ' ');
             $("#span_asset_date_time").text(dtStr);
-            $("#tb_aps").empty();
+            $("#tb_aps_up").empty();
             
-            if (l_aps != null) {
-                for (let i = 0; i < l_aps.length; i++) {
-                    let ap = l_aps[i];
+            if (l_aps_up != null) {
+                for (let i = 0; i < l_aps_up.length; i++) {
+                    let ap = l_aps_up[i];
                     let tr = $("<tr></tr>");
+                    let td_exchange = $("<td></td>").text(ap.asspsExchangeFullName);
                     let td_pair = $("<td></td>").text(ap.asspsPair);
                     let td_price = $("<td></td>").text(ap.asspsEndTrade+ " USD");
                     let td_change = $("<td></td>").text((ap.asspsTradeDiffPercent).toFixed(2) + "%");
+                    tr.append(td_exchange);
                     tr.append(td_pair);
                     tr.append(td_price);
                     tr.append(td_change);
-                    $("#tb_aps").append(tr);
+                    $("#tb_aps_up").append(tr);
+                }
+            }
+
+            $("#tb_aps_down").empty();
+
+            if (l_aps_down != null) {
+                for (let i = 0; i < l_aps_down.length; i++) {
+                    let ap = l_aps_down[i];
+                    let tr = $("<tr></tr>");
+                    let td_exchange = $("<td></td>").text(ap.asspsExchangeFullName);
+                    let td_pair = $("<td></td>").text(ap.asspsPair);
+                    let td_price = $("<td></td>").text(ap.asspsEndTrade+ " USD");
+                    let td_change = $("<td></td>").text((ap.asspsTradeDiffPercent).toFixed(2) + "%");
+                    tr.append(td_exchange);
+                    tr.append(td_pair);
+                    tr.append(td_price);
+                    tr.append(td_change);
+                    $("#tb_aps_down").append(tr);
                 }
             }
     }

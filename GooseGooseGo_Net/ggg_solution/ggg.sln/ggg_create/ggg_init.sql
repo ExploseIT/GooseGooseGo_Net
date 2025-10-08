@@ -41,19 +41,19 @@ create procedure spAssetWatchInit
 as
 begin
 
-drop table tblAssetSource
+drop table tblAssetExchange
 
 drop table tblAssetWatch
 
-if not exists (select * from sys.tables where name='tblAssetSource')
-CREATE TABLE [dbo].[tblAssetSource](
-	[assId] [nvarchar](20) NOT NULL,
-	[assSource] [nvarchar](300) NOT NULL,
-	[assDTAdded] datetime NOT NULL,
-	[assEnabled] [bit] NOT NULL,
+if not exists (select * from sys.tables where name='tblAssetExchange')
+CREATE TABLE [dbo].[tblAssetExchange](
+	[asxId] [nvarchar](20) NOT NULL,
+	[asxExchange] [nvarchar](300) NOT NULL,
+	[asxDTAdded] datetime NOT NULL,
+	[asxEnabled] [bit] NOT NULL,
  CONSTRAINT [PK_tblAssetSource] PRIMARY KEY CLUSTERED 
 (
-	[assId] ASC
+	[asxId] ASC
 )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
 ) ON [PRIMARY]
 
@@ -61,7 +61,7 @@ CREATE TABLE [dbo].[tblAssetSource](
 if not exists (select * from sys.tables where name='tblAssetWatch')
 CREATE TABLE [dbo].[tblAssetWatch](
 	[aswId] [int] IDENTITY(1,1) NOT NULL,
-	[aswSourceId] [nvarchar](10) NOT NULL,
+	[aswExchangeId] [nvarchar](10) NOT NULL,
 	[aswPair] [nvarchar](32) NOT NULL,
 	[aswEnabled] [bit] NOT NULL,
 	[aswPriceTriggerUp] [decimal](18,5) NULL,
@@ -76,34 +76,34 @@ CREATE TABLE [dbo].[tblAssetWatch](
 ) ON [PRIMARY]
 
 
-if not exists (select * from tblAssetSource where assId='AST_KRAKEN')
-INSERT INTO [dbo].[tblAssetSource]
-           ([assId]
-           ,[assSource]
-           ,[assDTAdded]
-           ,[assEnabled])
+if not exists (select * from tblAssetExchange where asxId='EXC_KRAKEN')
+INSERT INTO [dbo].[tblAssetExchange]
+           ([asxId]
+           ,[asxExchange]
+           ,[asxDTAdded]
+           ,[asxEnabled])
      VALUES
-           ('AST_KRAKEN'
+           ('EXC_KRAKEN'
            ,'KRAKEN'
            ,GETDATE()
            ,1)
 
-if not exists (select * from tblAssetSource where assId='AST_MEXC')
-INSERT INTO [dbo].[tblAssetSource]
-           ([assId]
-           ,[assSource]
-           ,[assDTAdded]
-           ,[assEnabled])
+if not exists (select * from tblAssetExchange where asxId='EXC_MEXC')
+INSERT INTO [dbo].[tblAssetExchange]
+           ([asxId]
+           ,[asxExchange]
+           ,[asxDTAdded]
+           ,[asxEnabled])
      VALUES
-           ('AST_MEXC'
+           ('EXC_MEXC'
            ,'MEXC'
            ,GETDATE()
            ,1)
 
 
-if not exists (select * from tblAssetWatch where aswSourceId='AST_KRAKEN' and aswPair='MUSD')
+if not exists (select * from tblAssetWatch where aswExchangeId='EXC_KRAKEN' and aswPair='MUSD')
 INSERT INTO [dbo].[tblAssetWatch]
-           ([aswSourceId]
+           ([aswExchangeId]
            ,[aswPair]
            ,[aswEnabled]
            ,[aswPriceTriggerUp]
@@ -111,7 +111,7 @@ INSERT INTO [dbo].[tblAssetWatch]
            ,[aswPriceTakeProfit]
            ,[aswPriceStopLoss])
      VALUES
-           ('AST_KRAKEN'
+           ('EXC_KRAKEN'
            ,'MUSD'
            ,1
            ,2.4
@@ -119,9 +119,9 @@ INSERT INTO [dbo].[tblAssetWatch]
            ,2.6
            ,1.8)
 
-if not exists (select * from tblAssetWatch where aswSourceId='AST_MEXC' and aswPair='MYXUSD')
+if not exists (select * from tblAssetWatch where aswExchangeId='EXC_MEXC' and aswPair='MYXUSD')
 INSERT INTO [dbo].[tblAssetWatch]
-           ([aswSourceId]
+           ([aswExchangeId]
            ,[aswPair]
            ,[aswEnabled]
            ,[aswPriceTriggerUp]
@@ -129,7 +129,7 @@ INSERT INTO [dbo].[tblAssetWatch]
            ,[aswPriceTakeProfit]
            ,[aswPriceStopLoss])
      VALUES
-           ('AST_MEXC'
+           ('EXC_MEXC'
            ,'MYXUSD'
            ,1
            ,5.7
@@ -261,7 +261,7 @@ create procedure spAssetWatchList
 as
 begin
 select [aswId]
-      ,[aswSourceId]
+      ,[aswExchangeId]
       ,[aswPair]
 	  , cast((select top 1 ass.assLastTrade from tblAsset ass left join tblAssetInfo asi on ass.assIndex=asi.asiId where ass.assPair=asw.aswPair order by asi.asiDT desc)
 	   as decimal(18,5)) as aswLastTrade
@@ -328,6 +328,7 @@ IF EXISTS (SELECT * FROM sys.procedures WHERE name = 'spAssetRollingPercentSwing
 GO
 
 CREATE PROCEDURE spAssetRollingPercentSwing
+	@aspspUpSwing bit,
     @aspspMinSwing DECIMAL(18,5),
     @aspspPeriodValue INT,
     @aspspPeriodUnit NVARCHAR(10),
@@ -377,6 +378,7 @@ BEGIN
 		wsStart.assId as asspsId,
         wsStart.assPair AS asspsPair,
 		wsStart.assExchange as asspsExchange,
+		exc.asxExchange as asspsExchangeFullName,
         CAST(wsStart.assLastTrade AS DECIMAL(18,5)) AS asspsStartTrade,
         CAST(wsEnd.assLastTrade AS DECIMAL(18,5)) AS asspsEndTrade,
         -- Standard percent change calculation; NULL if not computable
@@ -392,11 +394,17 @@ BEGIN
         cast(wsEnd.assRetrievedAt as datetime) AS asspsEndRetrievedAt
     FROM windStart wsStart
     INNER JOIN windEnd wsEnd ON wsStart.assPair = wsEnd.assPair
+	inner join tblAssetExchange exc on wsStart.assExchange = exc.asxId
     -- Filter by minimum swing if computable
     WHERE 
         CASE 
-            WHEN wsStart.assLastTrade = 0.0 OR wsEnd.assLastTrade = 0.0 THEN 0
-            ELSE ABS((wsEnd.assLastTrade - wsStart.assLastTrade) * 100.0 / wsStart.assLastTrade)
+            
+			when @aspspUpSwing=1 and wsEnd.assLastTrade > wsStart.assLastTrade
+			then ABS((wsEnd.assLastTrade - wsStart.assLastTrade) * 100.0 / wsStart.assLastTrade)
+			when @aspspUpSwing=0 and wsStart.assLastTrade > wsEnd.assLastTrade
+            then ABS((wsStart.assLastTrade - wsEnd.assLastTrade) * 100.0 / wsStart.assLastTrade)
+			when wsStart.assLastTrade = 0.0 OR wsEnd.assLastTrade = 0.0 THEN 0
+			else 0.0
         END >= @aspspMinSwing
     ORDER BY
         CASE 
@@ -433,12 +441,15 @@ Create Procedure spAssetUpdateById
            ,@assOpen decimal(18,5)
            ,@assBid decimal(18,5)
            ,@assAsk decimal(18,5)
-           ,@assHigh24h decimal(18,5)
+           ,@assHigh24h decimal(18,5) null
            ,@assLow24h decimal(18,5)
            ,@assVolume24h decimal(18,5)
            ,@assRetrievedAt datetime
 as
 begin
+if (@assVolume24h = 0.0 or @assHigh24h is null or @assLastTrade = 0.0)
+ select * from tblAsset where assId=@assId
+else
 if not exists (select * from tblAsset where assId = @assId)
 begin
 INSERT INTO [dbo].[tblAsset]

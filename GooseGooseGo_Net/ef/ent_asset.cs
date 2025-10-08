@@ -82,7 +82,7 @@ namespace GooseGooseGo_Net.ef
                     new SqlParameter("@assAsk", SqlDbType.Decimal) { Value = p.assAsk ?? (object)DBNull.Value },
                     new SqlParameter("@assHigh24h", SqlDbType.Decimal) { Value = p.assHigh24h ?? (object)DBNull.Value },
                     new SqlParameter("@assLow24h", SqlDbType.Decimal) { Value = p.assLow24h ?? (object)DBNull.Value },
-                    new SqlParameter("@assVolume24h", SqlDbType.Decimal) { Value = IsDbNull(p.assVolume24h) },
+                    new SqlParameter("@assVolume24h", SqlDbType.Decimal) { Value = p.assVolume24h.HasValue ? p.assVolume24h.Value : DBNull.Value},
                     new SqlParameter("@assRetrievedAt", SqlDbType.DateTime) { Value = p.assRetrievedAtSanitised() }
                 };
                 string sp = "spAssetUpdateById @assId,@assIndex,@assExchange,@assPair,@assLastTrade,@assOpen,@assBid,@assAsk,@assHigh24h,@assLow24h,@assVolume24h,@assRetrievedAt";
@@ -122,13 +122,14 @@ namespace GooseGooseGo_Net.ef
             try
             {
                 SqlParameter[] lParams = {
+                    new SqlParameter("@aspspUpSwing", SqlDbType.Bit) { Value = p.aspspUpSwing },
                     new SqlParameter("@aspspMinSwing", SqlDbType.Decimal) { Value = p.aspspMinSwing },
                     new SqlParameter("@aspspPeriodValue", SqlDbType.Int) { Value = p.aspspPeriodValue },
                     new SqlParameter("@aspspPeriodUnit", SqlDbType.NVarChar) { Value = p.aspspPeriodUnit },
                     new SqlParameter("@aspspRowCount", SqlDbType.Int) { Value = p.aspspRowCount },
                     new SqlParameter("@aspspPeriodOffset", SqlDbType.Int) { Value = p.aspspPeriodOffset }
                 };
-                string sp = "spAssetRollingPercentSwing @aspspMinSwing, @aspspPeriodValue, @aspspPeriodUnit, @aspspRowCount, @aspspPeriodOffset";
+                string sp = "spAssetRollingPercentSwing @aspspUpSwing, @aspspMinSwing, @aspspPeriodValue, @aspspPeriodUnit, @aspspRowCount, @aspspPeriodOffset";
                 var retSP = dbCon.lAssetPercentageSwing.FromSqlRaw(sp, lParams).AsEnumerable();
                 ret.apiData = retSP?.ToList() ?? new List<cAssetPercentageSwing>();
                 ret.apiSuccess = true;
@@ -207,6 +208,7 @@ namespace GooseGooseGo_Net.ef
         [Key]
         public Int64 asspsId { get; set; } = 0;
         public string asspsExchange { get; set; } = "";
+        public string asspsExchangeFullName { get; set; } = "";
         public string asspsPair { get; set; } = "";
         [Precision(18, 5)]
         public decimal asspsStartTrade { get; set; } = 0.0M;
@@ -227,6 +229,7 @@ namespace GooseGooseGo_Net.ef
     }
     public class cAssetPercentageSwingParms
     {
+        public bool aspspUpSwing { get; set; } = false;
         [Precision(18, 5)]
         public decimal aspspMinSwing { get; set; } = 0.0M;
         public int aspspPeriodValue { get; set; } = 0;

@@ -76,6 +76,30 @@ namespace GooseGooseGo_Net.Services
                                 e_asset.doAssetUpdateById(_dbCon, asset);
                             }
                         }
+                        foreach (var assd in mexcData!)
+                        {
+                            decimal c_dec = 0.0M;
+                            if (assd.symbol.EndsWith("USDT", StringComparison.OrdinalIgnoreCase))
+                            {
+                                var asset = new cAsset
+                                {
+                                    assId = 0, // Assuming 0 means new entry; adjust as needed
+                                    assIndex = assassInfo.asiId,
+                                    assExchange = "exc_mexc",
+                                    assPair = assd.symbol,
+                                    assLastTrade = assd.lastPrice != null && assd.lastPrice.Length > 0 ? decimal.Parse(assd.lastPrice) : 0,
+                                    assOpen = assd.openPrice != null ? decimal.Parse(assd.openPrice) : (decimal?)null,
+                                    assBid = assd.bidPrice != null && assd.bidPrice.Length > 0 ? decimal.Parse(assd.bidPrice!) : (decimal?)null,
+                                    assAsk = assd.askPrice != null && assd.askPrice.Length > 0 ? decimal.Parse(assd.askPrice) : (decimal?)null,
+                                    assHigh24h = assd.highPrice != null && assd.highPrice.Length > 1 ? decimal.Parse(assd.highPrice) : (decimal?)null,
+                                    assLow24h = decimal.Parse("0.0"),
+                                    assVolume24h = decimal.TryParse(assd.volume, out c_dec) ? c_dec : null,
+                                    assRetrievedAt = now
+
+                                };
+                                e_asset.doAssetUpdateById(_dbCon, asset);
+                            }
+                        }
                     }
                 }
                 catch (Exception e)

@@ -302,6 +302,7 @@ namespace GooseGooseGo_Net.ef
         public string quoteVolume { get; set; } = "";
         public Int64 openTime { get; set; } = 0;
         public Int64 closeTime { get; set; } = 0;
+        public string count { get; set; } = "";
     }
 
     public class cMexcApiDetails

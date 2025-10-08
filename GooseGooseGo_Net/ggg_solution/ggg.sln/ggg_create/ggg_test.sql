@@ -11,6 +11,8 @@ select top 200 * from tblAssetInfo order by asiDT desc
 */
 select * from tblSettings
 
+delete from tblAsset where assVolume24h = 0.0 or assHigh24h is null or assLastTrade = 0.0
+select * from tblAsset where assVolume24h = 0.0 or assHigh24h is null or assLastTrade = 0.0
 
 select 
 (select assLastTrade from tblAsset where assPair='MUSD' and assIndex=(select top 1 asiId from tblAssetInfo order by asiDT desc))
@@ -23,12 +25,14 @@ exec spAssetWatchInit
 exec spAssetInfoList
 exec spAssetWatchList
 
+exec spAssetRollingPercentSwing 1, 0.010, 5, 'minute',20,0
 
-
-exec spAssetRollingPercentSwing 0.010, 20, 'minute',10,0
-exec spAssetRollingPercentSwing 0.010, 20, 'minute',10,1
-exec spAssetRollingPercentSwing 0.010, 20, 'minute',10,2
-
+exec spAssetRollingPercentSwing 1, 0.010, 20, 'minute',10,0
+exec spAssetRollingPercentSwing 0, 0.010, 20, 'minute',10,0
+exec spAssetRollingPercentSwing 1, 0.010, 20, 'minute',10,1
+exec spAssetRollingPercentSwing 0, 0.010, 20, 'minute',10,1
+exec spAssetRollingPercentSwing 1, 0.010, 20, 'minute',10,2
+exec spAssetRollingPercentSwing 0, 0.010, 20, 'minute',10,2
 
 /*
 select * from tblAsset where kaPair = 'MUSD' and kaLastTrade >2.4 order by kaLastTrade desc
