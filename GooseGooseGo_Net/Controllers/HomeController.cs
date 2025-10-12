@@ -42,7 +42,11 @@ namespace GooseGooseGo_Net.Controllers
             var _e_kucoin = new ent_kucoin(_conf, _logger, _httpClientFactory, _dbCon);
 
             KrakenEnvelope<KrakenTradesHistoryResult>? krakenTradesHistoryData = await _e_kraken.doApi_TradesHistoryAsync(_dbCon);
-            KrakenEnvelope<Dictionary<string, string>>? krakenBalanceData = await _e_kraken.doApi_AssetBalanceAsync(_dbCon);
+            Dictionary<string, decimal>? krakenBalanceData = await _e_kraken.doApi_AssetBalanceAsync(_dbCon);
+            var _krakenTickerParms = _e_kraken.doGetTickerPairsFromBalance(krakenBalanceData);
+            //var _krakenTickerParms = new KrakenTickerParams { pair = "SPICEUSD" };
+            KrakenEnvelope<Dictionary<string, KrakenTickerEntry>>? krakenTickerData = await _e_kraken.doApi_TickerAsync(_dbCon,_krakenTickerParms);
+            _e_kraken.doGetPortfolio(_dbCon, krakenTradesHistoryData, krakenBalanceData, krakenTickerData);
             KrakenEnvelope<Dictionary<string, KrakenTickerEntry>>? krakenData = await _e_kraken.doApi_TickerListAsync(_dbCon);
             /*
             cReturnedKucoin? kucoinData = await _e_kucoin.doApi_TickerListAsync(_dbCon);

@@ -1,17 +1,18 @@
-
-using GooseGooseGo_Net.Models;
+﻿
 using GooseGooseGo_Net.ef;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Logging;
+using GooseGooseGo_Net.Models;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using System.ComponentModel.DataAnnotations;
 using System.Data;
+using System.Globalization;
+using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Net.Http;
 using System.Threading.Tasks;
 using static GooseGooseGo_Net.ef.ent_asset;
 
@@ -100,35 +101,176 @@ namespace GooseGooseGo_Net.ef
             return ret;
         }
 
+        public void doGetPortfolio(dbContext _dbCon, KrakenEnvelope<KrakenTradesHistoryResult>? krakenTradesHistoryData, 
+            Dictionary<string, decimal>? krakenBalanceData,
+            KrakenEnvelope<Dictionary<string, KrakenTickerEntry>>? krakenTickerData)
+        {
+            decimal totalUsdValue = 0m;
+            decimal totalUnrealizedPnl = 0m;
+
+            foreach (var bal in krakenBalanceData!) // Dictionary<string, decimal> e.g. { "SPICE": 123.45m }
+            {
+                var asset = bal.Key;
+                var qtyHeld = bal.Value;
+                if (qtyHeld <= 0) continue;
+
+
+                var pair = asset + "USD"; // adjust if you prefer another quote
+
+                // Build a lookup so we can quickly get trades for "SPICEUSD", "BABYUSD", etc.
+                var tradesByPair = krakenTradesHistoryData?.Result?.Trades?
+                    .Values
+                    .Where(t => !string.IsNullOrEmpty(t.Pair))
+                    .GroupBy(t => t.Pair!)
+                    .ToDictionary(g => g.Key, g => g.AsEnumerable(), StringComparer.OrdinalIgnoreCase)
+                    ?? new Dictionary<string, IEnumerable<KrakenTrade>>(StringComparer.OrdinalIgnoreCase);
+
+                // For quick last prices:
+                var lastPriceByPair = krakenTickerData?.Result?
+                    .ToDictionary(
+                        kv => kv.Key,
+                        kv => decimal.TryParse(kv.Value.LastTrade?.FirstOrDefault(),
+                                               NumberStyles.Any, CultureInfo.InvariantCulture, out var d) ? d : 0m,
+                        StringComparer.OrdinalIgnoreCase
+                    ) ?? new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
+
+
+                if (!lastPriceByPair.TryGetValue(pair, out var lastPrice) || lastPrice <= 0)
+                    continue;
+
+                tradesByPair.TryGetValue(pair, out var tradesForPair);
+                var pos = tradesForPair is null ? new Position { Qty = qtyHeld, AvgCost = 0m } : BuildPosition(tradesForPair);
+
+                // If positions differ slightly from balance (deposits/airdrops), trust the balance
+                var avgCost = pos.Qty > 0 ? pos.AvgCost : pos.AvgCost; // pos.AvgCost is our best available cost basis
+                var marketValue = qtyHeld * lastPrice;
+                var unrealized = (avgCost > 0 ? (lastPrice - avgCost) * qtyHeld : 0m);
+
+                totalUsdValue += marketValue;
+                totalUnrealizedPnl += unrealized;
+
+                string value_cur =
+                    $"{asset,-8} Qty={qtyHeld,12:N6}  Avg={avgCost,12:N8}  Last={lastPrice,12:N8} Value={marketValue,14:N2}  UPL={unrealized,12:N2}";
+                
+            }
+
+            var value_total = $"\nTotal Value  ≈ {totalUsdValue:N2} USD";
+            var value_unrealised = $"Unrealized P/L ≈ {totalUnrealizedPnl:N2} USD";
+        }
+
+
+
+// Turns Kraken trades (for one pair) into a Position (avg cost etc.)
+public static Position BuildPosition(IEnumerable<KrakenTrade> trades)
+        {
+            var pos = new Position();
+            var ci = CultureInfo.InvariantCulture;
+
+            foreach (var t in trades.OrderBy(x => x.Time ?? 0.0))
+            {
+                var side = t.Type;  // "buy" or "sell"
+                var price = t.Price ?? 0m;         // quote per unit
+                var qty = t.Volume ?? 0m;        // base units
+                var fee = t.Fee ?? 0m;           // quote currency (assumed)
+
+                if (qty <= 0 || price <= 0) continue;
+
+                if (string.Equals(side, "buy", StringComparison.OrdinalIgnoreCase))
+                {
+                    // New total cost = existing position cost + (trade cost + fee)
+                    var existingCost = pos.AvgCost * pos.Qty;
+                    var tradeCost = price * qty + fee;
+                    var newQty = pos.Qty + qty;
+
+                    pos.AvgCost = newQty > 0 ? (existingCost + tradeCost) / newQty : 0m;
+                    pos.Qty = newQty;
+                    pos.FeesPaid += fee;
+                }
+                else if (string.Equals(side, "sell", StringComparison.OrdinalIgnoreCase))
+                {
+                    // Realized P&L on the portion sold, net of fee
+                    var pnl = (price - pos.AvgCost) * qty - fee;
+                    pos.RealizedPnl += pnl;
+                    pos.Qty -= qty;
+                    if (pos.Qty < 0) pos.Qty = 0;   // defensive
+                    pos.FeesPaid += fee;
+
+                    // AvgCost stays the same in weighted-average method when selling
+                    if (pos.Qty == 0) pos.AvgCost = 0m; // closed out
+                }
+            }
+
+            return pos;
+        }
+
+
         public async Task<KrakenEnvelope<Dictionary<string, KrakenTickerEntry>>?> doApi_TickerListAsync(dbContext _dbCon)
         {
-            cApiParms p = new cApiParms
+            Exception? exc = null;
+            KrakenEnvelope<Dictionary<string, KrakenTickerEntry>>? ret = null;
+            try
             {
-                apMethod = "GET",
-                apPath = "/0/public/Ticker",
-                apDoSign = false
-            };
-            string retJson = await doApi_Base(p, _dbCon);
+                cApiParms p = new cApiParms
+                {
+                    apMethod = "GET",
+                    apPath = "/0/public/Ticker",
+                    apDoSign = false
+                };
 
-            var ret = JsonSerializer.Deserialize<KrakenEnvelope<Dictionary<string, KrakenTickerEntry>>?>(retJson);
+                string retJson = await doApi_Base<object>(p, _dbCon);
 
+                ret = JsonSerializer.Deserialize<KrakenEnvelope<Dictionary<string, KrakenTickerEntry>>?>(retJson);
+            }
+            catch (Exception ex)
+            {
+                exc = ex;
+            }
             return ret;
         }
 
-        public async Task<KrakenEnvelope<Dictionary<string, string>>?> doApi_AssetBalanceAsync(dbContext _dbCon)
+        public async Task<Dictionary<string, decimal>?> doApi_AssetBalanceAsync(dbContext _dbCon)
         {
+            Dictionary<string, decimal>? ret = null;
             cApiParms p = new cApiParms
             {
                 apMethod = "POST",
                 apPath = "/0/private/Balance",
                 apDoSign = true
             };
-            string retJson = await doApi_Base(p, _dbCon);
+            string retJson = await doApi_Base<object>(p, _dbCon);
 
-            var ret = JsonSerializer.Deserialize<KrakenEnvelope<Dictionary<string, string>>?>(retJson);
+            /*
+            Dictionary<string, decimal> FilterCurrentHoldings(
+                string balanceJson,
+                decimal minAmount = 0.01m,        // adjust “dust” threshold as you like
+                bool excludeFundingSuffixF = true  // excludes assets like BNB.F, ETH.F
+            )
+            */
+            decimal minAmount = 0.01m;
+            bool excludeFundingSuffixF = true;
+            {
+                var env = JsonSerializer.Deserialize<KrakenEnvelope<Dictionary<string, string>>>(retJson)
+                          ?? throw new InvalidOperationException("Empty Kraken response.");
 
+                if (env.Error?.Count > 0) throw new InvalidOperationException(string.Join("; ", env.Error));
+
+                var ci = CultureInfo.InvariantCulture;
+
+                ret = (env.Result ?? new Dictionary<string, string>())
+                    .Select(kv => new
+                    {
+                        Asset = kv.Key,
+                        Amount = decimal.TryParse(kv.Value, NumberStyles.Any, ci, out var d) ? d : 0m
+                    })
+                    .Where(x =>
+                        x.Amount > minAmount &&
+                        (!excludeFundingSuffixF || !x.Asset.EndsWith(".F", StringComparison.OrdinalIgnoreCase)))
+                    .ToDictionary(x => x.Asset, x => x.Amount);
+            }
             return ret;
         }
+
+
 
         public async Task<KrakenEnvelope<KrakenTradesHistoryResult>?> doApi_TradesHistoryAsync(dbContext _dbCon)
         {
@@ -138,14 +280,94 @@ namespace GooseGooseGo_Net.ef
                 apPath = "/0/private/TradesHistory",
                 apDoSign = true
             };
-            string retJson = await doApi_Base(p, _dbCon);
+            string retJson = await doApi_Base<object>(p, _dbCon);
 
             var ret = JsonSerializer.Deserialize<KrakenEnvelope<KrakenTradesHistoryResult>?>(retJson);
 
             return ret;
         }
 
-        public async Task<string> doApi_Base(cApiParms p, dbContext _dbCon)
+        public async Task<KrakenEnvelope<Dictionary<string, KrakenTickerEntry>>?> doApi_TickerAsync(dbContext _dbCon, KrakenTickerParams parms)
+        {
+            Exception? exc = null;
+            KrakenEnvelope<Dictionary<string, KrakenTickerEntry>>? ret = null;
+            try
+            { 
+                cApiParms p = new cApiParms
+                {
+                    apMethod = "GET",
+                    apPath = "/0/public/Ticker",
+                    apDoSign = true
+                };
+                string retJson = await doApi_Base(p, _dbCon, parms);
+
+                ret = JsonSerializer.Deserialize<KrakenEnvelope<Dictionary<string, KrakenTickerEntry>>?>(retJson);
+            }
+            catch (Exception ex)
+            {
+                exc = ex;
+            }
+
+            return ret;
+        }
+
+        public async Task<string> doApi_Base<T>(cApiParms p, dbContext _dbCon, T? parms = default)
+    where T : class
+        {
+            var environment = _apiDetails!.apidet_api_url!.TrimEnd('/');
+            var url = environment + p.apPath;
+
+            // Nonce is required for private calls
+            var nonce = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString();
+
+            // Convert parameters (object or dictionary) into key-value pairs
+            var form = new List<KeyValuePair<string, string>>
+    {
+        new("nonce", nonce)
+    };
+
+            if (parms != null)
+            {
+                // Convert the object’s public properties into key=value pairs
+                foreach (var prop in parms.GetType().GetProperties())
+                {
+                    var name = prop.Name;
+                    var value = prop.GetValue(parms)?.ToString() ?? "";
+                    form.Add(new KeyValuePair<string, string>(name, value));
+                }
+            }
+
+            var formBody = new FormUrlEncodedContent(form);
+            var postDataStr = await formBody.ReadAsStringAsync();
+
+            // Compute Kraken signature if required
+            string sig = "";
+            if (p.apDoSign && !string.IsNullOrEmpty(_apiDetails!.apidet_secret))
+                sig = KrakenSign(p.apPath, postDataStr, nonce, _apiDetails!.apidet_secret!);
+
+            // Build the request
+            var req = new HttpRequestMessage(HttpMethod.Post, url)
+            {
+                Content = formBody
+            };
+
+            if (p.apDoSign && !string.IsNullOrEmpty(_apiDetails!.apidet_key))
+            {
+                req.Headers.Add("API-Key", _apiDetails!.apidet_key!);
+                req.Headers.Add("API-Sign", sig);
+            }
+
+            var client = _httpClientFactory.CreateClient();
+            var resp = await client.SendAsync(req);
+            var ret = await resp.Content.ReadAsStringAsync();
+
+            if (!resp.IsSuccessStatusCode)
+                throw new HttpRequestException($"{(int)resp.StatusCode} {resp.ReasonPhrase}: {ret}");
+
+            return ret;
+        }
+
+        public async Task<string> doApi_Base2(cApiParms p, dbContext _dbCon)
         {
             var environment = _apiDetails!.apidet_api_url!.TrimEnd('/');     // e.g. https://api.kraken.com
             var url = environment + p.apPath;                                // /0/private/Balance
@@ -215,11 +437,50 @@ namespace GooseGooseGo_Net.ef
             => string.Join("&", query.Select(kv =>
                 $"{Uri.EscapeDataString(kv.Key)}={Uri.EscapeDataString(kv.Value)}"));
 
+        public KrakenTickerParams doGetTickerPairsFromBalance(Dictionary<string, decimal>? krakenBalanceData)
+        {
+            KrakenTickerParams? ret = null;
+
+            if (krakenBalanceData == null || krakenBalanceData.Count == 0)
+                return new KrakenTickerParams();
+
+            // Kraken usually uses quote codes like USD, EUR, USDT, etc.
+            const string quote = "USD";
+
+            // Some Kraken balance keys aren’t valid trading assets (fiat, rewards, .F suffix)
+            var excluded = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    {
+        "USD", "EUR", "GBP", "ZUSD", "ZEUR", "ZGBP"
+    };
+
+            var pairs = krakenBalanceData
+                .Where(kv => kv.Value > 0.00000001m && !excluded.Contains(kv.Key) && !kv.Key.EndsWith(".F", StringComparison.OrdinalIgnoreCase))
+                .Select(kv =>
+                {
+                    // Normalize to Kraken’s format (XBT instead of BTC)
+                    var baseSymbol = kv.Key switch
+                    {
+                        "BTC" => "XBT",
+                        _ => kv.Key
+                    };
+                    return $"{baseSymbol}{quote}";
+                })
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            ret =  new KrakenTickerParams
+            {
+                pair = string.Join(",", pairs)
+            };
+
+            return ret;
+        }
+
         // --- Model Classes ---
 
     }
 
-        public class cKraken
+    public class cKraken
         {
             [Key]
             public int kaId { get; set; }
@@ -379,7 +640,12 @@ namespace GooseGooseGo_Net.ef
             [JsonPropertyName("o")] public string? Open { get; set; }
         }
 
-        public sealed record TickerRow(
+    public class KrakenTickerParams
+    {
+        public string pair { get; set; } = "XBTUSD";
+    }
+
+    public sealed record TickerRow(
             string Pair,
             decimal Last,
             decimal Open,
@@ -401,5 +667,15 @@ namespace GooseGooseGo_Net.ef
             decimal Volume,
             int Count
         );
+
+
+    // Position snapshot while iterating trades
+    public sealed class Position
+    {
+        public decimal Qty { get; set; }                // remaining quantity
+        public decimal AvgCost { get; set; }            // average entry price (quote per unit)
+        public decimal RealizedPnl { get; set; }        // realized P&L in quote currency
+        public decimal FeesPaid { get; set; }           // total fees in quote currency
+    }
 
 }
