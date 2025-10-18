@@ -101,10 +101,34 @@ namespace GooseGooseGo_Net.ef
             return ret;
         }
 
-        public void doGetPortfolio(dbContext _dbCon, KrakenEnvelope<KrakenTradesHistoryResult>? krakenTradesHistoryData, 
+        public async Task<ApiResponse<List<cKrakenPortfolio>>?> doKrakenReturnPortfolio(dbContext _dbCon)
+        {
+            ApiResponse<List<cKrakenPortfolio>> ret = new ApiResponse<List<cKrakenPortfolio>>();
+            try
+            {
+                //var _e_kraken = new ent_kraken(_conf, _logger, _httpClientFactory, _dbCon);
+                // Get Kraken Portfolio Data
+                KrakenEnvelope<KrakenTradesHistoryResult>? krakenTradesHistoryData = await doApi_TradesHistoryAsync(_dbCon);
+                Dictionary<string, decimal>? krakenBalanceData = await doApi_AssetBalanceAsync(_dbCon);
+                var _krakenTickerParms = doGetTickerPairsFromBalance(krakenBalanceData);
+                KrakenEnvelope<Dictionary<string, KrakenTickerEntry>>? krakenTickerData = await doApi_TickerAsync(_dbCon, _krakenTickerParms);
+                ret.apiData = doGetPortfolio(_dbCon, krakenTradesHistoryData, krakenBalanceData, krakenTickerData);
+                ret.apiSuccess = true;
+            }
+            catch (Exception ex)
+            {
+                ret.apiSuccess = false;
+                ret.apiMessage = ex.Message;
+            }
+            return ret;
+        }
+
+        public List<cKrakenPortfolio> doGetPortfolio(dbContext _dbCon, KrakenEnvelope<KrakenTradesHistoryResult>? krakenTradesHistoryData, 
             Dictionary<string, decimal>? krakenBalanceData,
             KrakenEnvelope<Dictionary<string, KrakenTickerEntry>>? krakenTickerData)
         {
+            List<cKrakenPortfolio> ret = new List<cKrakenPortfolio>();
+
             decimal totalUsdValue = 0m;
             decimal totalUnrealizedPnl = 0m;
 
@@ -149,13 +173,27 @@ namespace GooseGooseGo_Net.ef
                 totalUsdValue += marketValue;
                 totalUnrealizedPnl += unrealized;
 
-                string value_cur =
-                    $"{asset,-8} Qty={qtyHeld,12:N6}  Avg={avgCost,12:N8}  Last={lastPrice,12:N8} Value={marketValue,14:N2}  UPL={unrealized,12:N2}";
+                var _mKrakenPortfolio = new cKrakenPortfolio
+                {
+                    kpAsset = asset,
+                    kpQtyHeld = qtyHeld,
+                    kpAvgCost = avgCost,
+                    kpLastPrice = lastPrice,
+                    kpMarketValue = marketValue,
+                    kpUnrealizedPnl = unrealized,
+                    kpRealizedPnl = pos.RealizedPnl,
+                    kpFeesPaid = pos.FeesPaid,
+                    kpRetrievedAt = DateTime.UtcNow
+                };
+
+                ret.Add(_mKrakenPortfolio);
                 
             }
 
             var value_total = $"\nTotal Value  ≈ {totalUsdValue:N2} USD";
             var value_unrealised = $"Unrealized P/L ≈ {totalUnrealizedPnl:N2} USD";
+
+            return ret;
         }
 
 
@@ -367,41 +405,7 @@ public static Position BuildPosition(IEnumerable<KrakenTrade> trades)
             return ret;
         }
 
-        public async Task<string> doApi_Base2(cApiParms p, dbContext _dbCon)
-        {
-            var environment = _apiDetails!.apidet_api_url!.TrimEnd('/');     // e.g. https://api.kraken.com
-            var url = environment + p.apPath;                                // /0/private/Balance
-
-            // ----- form body (nonce only for Balance) -----
-            var nonce = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString();
-            var form = new List<KeyValuePair<string, string>> { new("nonce", nonce) };
-            var formBody = new FormUrlEncodedContent(form);
-            var postDataStr = await formBody.ReadAsStringAsync();            // "nonce=172...123"
-
-            // ----- signature -----
-            // API-Sign = Base64( HMAC-SHA512( uriPath + SHA256(nonce + postdata), base64(secret) ) )
-            var sig = KrakenSign(p.apPath, postDataStr, nonce, _apiDetails!.apidet_secret!); // SECRET here
-
-            var req = new HttpRequestMessage(HttpMethod.Post, url)
-            {
-                Content = formBody
-            };
-
-            if (p.apDoSign && !string.IsNullOrEmpty(_apiDetails!.apidet_key))
-            {
-                req.Headers.Add("API-Key", _apiDetails!.apidet_key!);            // KEY here
-                req.Headers.Add("API-Sign", sig);
-            }
-
-            var client = _httpClientFactory.CreateClient();
-            var resp = await client.SendAsync(req);
-            var ret = await resp.Content.ReadAsStringAsync();
-
-            // helpful error
-            if (!resp.IsSuccessStatusCode) throw new HttpRequestException($"{(int)resp.StatusCode} {resp.ReasonPhrase}: {ret}");
-            return ret;
-        }
-
+ 
         private static string KrakenSign(string uriPath, string postData, string nonce, string secretB64)
         {
             using var sha256 = SHA256.Create();
@@ -413,29 +417,6 @@ public static Position BuildPosition(IEnumerable<KrakenTrade> trades)
             return Convert.ToBase64String(mac);
         }
 
-        private string GetSignature(string privateKey, string data, string nonce, string path)
-        {
-            using var sha256 = SHA256.Create();
-            var sha = sha256.ComputeHash(Encoding.UTF8.GetBytes(nonce + data));
-            var pathBytes = Encoding.UTF8.GetBytes(path);
-            var toSign = new byte[pathBytes.Length + sha.Length];
-            Buffer.BlockCopy(pathBytes, 0, toSign, 0, pathBytes.Length);
-            Buffer.BlockCopy(sha, 0, toSign, pathBytes.Length, sha.Length);
-            return Sign(privateKey, toSign);
-        }
-
-        private string Sign(string privateKey, byte[] message)
-        {
-            using var hmac = new HMACSHA512(Convert.FromBase64String(privateKey));
-            var digest = hmac.ComputeHash(message);
-            return Convert.ToBase64String(digest);
-        }
-
-        private string GetNonce() => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString();
-
-        private string BuildQueryString(Dictionary<string, string> query)
-            => string.Join("&", query.Select(kv =>
-                $"{Uri.EscapeDataString(kv.Key)}={Uri.EscapeDataString(kv.Value)}"));
 
         public KrakenTickerParams doGetTickerPairsFromBalance(Dictionary<string, decimal>? krakenBalanceData)
         {
@@ -480,6 +461,32 @@ public static Position BuildPosition(IEnumerable<KrakenTrade> trades)
 
     }
 
+    public class cKrakenPortfolio
+    {
+        [Key]
+        public int kpId { get; set; }
+        public string kpAsset { get; set; } = "";
+        [Precision(18, 8)]
+        public decimal kpQtyHeld { get; set; }
+        [Precision(18, 8)]
+        public decimal kpAvgCost { get; set; }
+        [Precision(18, 8)]
+        public decimal kpLastPrice { get; set; }
+        [Precision(18, 8)]
+        public decimal kpMarketValue { get; set; }
+        [Precision(18, 8)]
+        public decimal kpUnrealizedPnl { get; set; }
+        [Precision(18, 8)]
+        public decimal kpRealizedPnl { get; set; }
+        [Precision(18, 8)]
+        public decimal kpFeesPaid { get; set; }
+        public DateTime kpRetrievedAt { get; set; }
+        public DateTime kpRetrievedAtSanitised()
+        {
+            var dt = this.kpRetrievedAt.ToLocalTime();
+            return new DateTime(dt.Year, dt.Month, dt.Day, dt.Hour, dt.Minute, dt.Second);
+        }
+    }
     public class cKraken
         {
             [Key]

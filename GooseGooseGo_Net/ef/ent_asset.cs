@@ -173,12 +173,14 @@ namespace GooseGooseGo_Net.ef
             }
         }
 
-        public class cApiParms
-        {
-            public string apMethod { get; set; } = "GET";
-            public string apPath { get; set; } = "";
-            public bool apDoSign { get; set; } = false;
-        }
+    public class cApiParms
+    {
+        public string apMethod { get; set; } = "GET";
+        public string apPath { get; set; } = "";
+        public Dictionary<string, string> apQuery { get; set; } = new();
+        public string apBody { get; set; } = "";
+        public bool apDoSign { get; set; } = false;
+    }
 
     public class cAssetAssetInfo
     {

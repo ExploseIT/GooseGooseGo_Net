@@ -41,16 +41,29 @@ namespace GooseGooseGo_Net.Controllers
             var _e_cryptocom = new ent_cryptocom(_conf, _logger, _httpClientFactory, _dbCon);
             var _e_kucoin = new ent_kucoin(_conf, _logger, _httpClientFactory, _dbCon);
 
+
+            List<MexcTickerEntry>? mexcData = await _e_mexc.doApi_TickerListAsync(_dbCon);
+
+            // Get Kraken Portfolio Data
             KrakenEnvelope<KrakenTradesHistoryResult>? krakenTradesHistoryData = await _e_kraken.doApi_TradesHistoryAsync(_dbCon);
             Dictionary<string, decimal>? krakenBalanceData = await _e_kraken.doApi_AssetBalanceAsync(_dbCon);
             var _krakenTickerParms = _e_kraken.doGetTickerPairsFromBalance(krakenBalanceData);
-            //var _krakenTickerParms = new KrakenTickerParams { pair = "SPICEUSD" };
             KrakenEnvelope<Dictionary<string, KrakenTickerEntry>>? krakenTickerData = await _e_kraken.doApi_TickerAsync(_dbCon,_krakenTickerParms);
-            _e_kraken.doGetPortfolio(_dbCon, krakenTradesHistoryData, krakenBalanceData, krakenTickerData);
+            var _cKrakenPortfolio = _e_kraken.doGetPortfolio(_dbCon, krakenTradesHistoryData, krakenBalanceData, krakenTickerData);
+
+            // Get Mexc Portfolio Data
+            cMexcAccounts? mexcAccountsData = await _e_mexc.doApi_AccountsAsync(_dbCon);
+            //Dictionary<string, decimal>? mexcBalanceData = await _e_mexc.doApi_AssetBalanceAsync(_dbCon);
+            //var _mexcTickerParms = _e_mexc.doGetTickerPairsFromBalance(mexcBalanceData);
+            //KrakenEnvelope<Dictionary<string, KrakenTickerEntry>>? mexcTickerData = await _e_mexc.doApi_TickerAsync(_dbCon, _mexcTickerParms);
+            //_e_mexc.doGetPortfolio(_dbCon, mexcTradesHistoryData, mexcBalanceData, mexcTickerData);
+
+
+
             KrakenEnvelope<Dictionary<string, KrakenTickerEntry>>? krakenData = await _e_kraken.doApi_TickerListAsync(_dbCon);
             /*
             cReturnedKucoin? kucoinData = await _e_kucoin.doApi_TickerListAsync(_dbCon);
-            List<MexcTickerEntry>? mexcData = await _e_mexc.doApi_TickerListAsync(_dbCon);
+            
             
             cReturnedCryptoCom? cryptocomData = await _e_cryptocom.doApi_TickerListAsync(_dbCon);
 

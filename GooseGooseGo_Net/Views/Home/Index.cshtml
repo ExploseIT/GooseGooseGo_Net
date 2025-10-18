@@ -26,6 +26,46 @@
   </div>
 </div>
 <div class="row">
+    <div class="col-12"><b>Kraken Portfolio</b></div>
+        <table id="tab_kraken_portfolio" class="col-12">
+            <thead>
+                <tr>
+                    <th>Exchange</th>
+                    <th>Qty Held</th>
+                    <th>Avg Cost</th>
+                    <th>Market Value</th>
+                    <th>Unrealised PnL</th>
+                    <th>Realised PnL</th>
+                    <th>Fees Paid</th>
+                </tr>
+            </thead>
+
+            <tbody id="tb_kraken_portfolio">
+            </tbody>
+        </table>
+   </div>
+
+<div class="row">
+    <div class="col-12"><b>Mexc Portfolio</b></div>
+    <table id="tab_mexc_portfolio" class="col-12">
+        <thead>
+            <tr>
+                <th>Exchange</th>
+                <th>Qty Held</th>
+                <th>Avg Cost</th>
+                <th>Market Value</th>
+                <th>Unrealised PnL</th>
+                <th>Realised PnL</th>
+                <th>Fees Paid</th>
+            </tr>
+        </thead>
+
+        <tbody id="tb_mexc_portfolio">
+        </tbody>
+    </table>
+</div>
+
+<div class="row">
     <div class="col-5">
     <div class="col-12">Up Swing</div>
         <table id="tab_aps_up" class="col-12">
@@ -72,7 +112,7 @@
 
     function pollDataRead() {
         doDataRead();
-        setTimeout(pollDataRead, 10000); // Schedule next poll after 10s
+        setTimeout(pollDataRead, 20*1000); // Schedule next poll after 10s
     }
 
         function doInit() {
@@ -97,6 +137,10 @@
     var l_aps_up = null;
     var l_aps_down = null;
     var l_a_info = null;
+    var l_kraken_portfolio = null;
+    var l_mexc_portfolio = null;
+    var kpCountDown = 0;
+    var mexcCountDown = 0;
 
     function doContinueSwingListUp(ret) {
         l_aps_up = ret.data.apiData;
@@ -116,16 +160,110 @@
         l_aps_down = ret.data.apiData;
         doApiPost(doContinueInfoList, null, "api/doAssetInfoList");
     }
-
+    
     function doContinueInfoList(ret) {
-            // Continuation code here
-            l_a_info = ret.data.apiData;
+        l_a_info = ret.data.apiData;
+        if (kpCountDown > 0) {
+            kpCountDown--;
+            doContinueKrakenPortfolio(null);
+        }
+        else {
+            doApiPost(doContinueKrakenPortfolio, null, "api/doKrakenReturnPortfolio");
+        }
+    }
+
+    function doContinueKrakenPortfolio(ret)
+    {
+        if (ret !== null) {
+            if (ret.data.apiSuccess === false) {
+                kpCountDown = 2;
+            } else {
+                l_kraken_portfolio = ret.data.apiData;
+            }
+        }
+        if (mexcCountDown > 0) {
+            mexcCountDown--;
+            doContinueDisplayLists();
+        }
+        else {
+            doApiPost(doContinueMexcPortfolio, null, "api/doMexcReturnPortfolio");
+        }
+    }
+
+   function doContinueMexcPortfolio(ret) {
+       if (ret !== null) {
+           if (ret.data.apiSuccess === false) {
+                 mexcCountDown = 2;
+           }
+           else {
+               l_mexc_portfolio = ret.data.apiData;
+           }
+       }
+       doContinueDisplayLists();
+   }
+
+    function doContinueDisplayLists() {
+        doDisplayAssetListsUpDown();
+        doDisplayKrakenPortfolio();
+        doDisplayMexcPortfolio();
+    }
+     function doDisplayMexcPortfolio() {
+         $("#tb_mexc_portfolio").empty();
+         if (l_mexc_portfolio !== null) {
+             for (let i=0;i<l_mexc_portfolio.length;i++) {
+                 let mp = l_mexc_portfolio[i];
+                 let tr = $("<tr></tr>");
+                     let td_exchange = $("<td></td>").text(mp.mpAsset);
+                     let td_qtyheld = $("<td></td>").text(mp.mpQtyHeld);
+                     let td_avgcost = $("<td></td>").text(mp.mpAvgCost + " USD");
+                     let td_marketvalue = $("<td></td>").text(mp.mpMarketValue + " USD");
+                     let td_unrealizedPnl = $("<td></td>").text(mp.mpUnrealizedPnl + " USD");
+                     let td_realizedPnl = $("<td></td>").text(mp.mpRealizedPnl + " USD");
+                     let td_feespaid = $("<td></td>").text(mp.mpFeesPaid + " USD");
+                     tr.append(td_exchange);
+                     tr.append(td_qtyheld);
+                     tr.append(td_avgcost);
+                     tr.append(td_marketvalue);
+                     tr.append(td_unrealizedPnl);
+                     tr.append(td_realizedPnl);
+                     tr.append(td_feespaid);
+                     $("#tb_mexc_portfolio").append(tr);
+             }
+         }
+     }
+
+    function doDisplayKrakenPortfolio() {
+        $("#tb_kraken_portfolio").empty();
+        if (l_kraken_portfolio !== null) {
+            for (let i=0;i<l_kraken_portfolio.length;i++) {
+                let kp = l_kraken_portfolio[i];
+                let tr = $("<tr></tr>");
+                    let td_exchange = $("<td></td>").text(kp.kpAsset);
+                    let td_qtyheld = $("<td></td>").text(kp.kpQtyHeld);
+                    let td_avgcost = $("<td></td>").text(kp.kpAvgCost + " USD");
+                    let td_marketvalue = $("<td></td>").text(kp.kpMarketValue + " USD");
+                    let td_unrealizedPnl = $("<td></td>").text(kp.kpUnrealizedPnl + " USD");
+                    let td_realizedPnl = $("<td></td>").text(kp.kpRealizedPnl + " USD");
+                    let td_feespaid = $("<td></td>").text(kp.kpFeesPaid + " USD");
+                    tr.append(td_exchange);
+                    tr.append(td_qtyheld);
+                    tr.append(td_avgcost);
+                    tr.append(td_marketvalue);
+                    tr.append(td_unrealizedPnl);
+                    tr.append(td_realizedPnl);
+                    tr.append(td_feespaid);
+                    $("#tb_kraken_portfolio").append(tr);
+            }
+        }
+    }
+
+    function doDisplayAssetListsUpDown() {
             $("#span_asset_item_count").text(l_a_info.length);
             let dt = l_a_info[0].assRetrievedAt;
             let dtStr = dt.replace('T', ' ');
             $("#span_asset_date_time").text(dtStr);
             $("#tb_aps_up").empty();
-            
+
             if (l_aps_up != null) {
                 for (let i = 0; i < l_aps_up.length; i++) {
                     let ap = l_aps_up[i];

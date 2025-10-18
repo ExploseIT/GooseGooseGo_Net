@@ -39,6 +39,32 @@ namespace GooseGooseGo_Net.Controllers
             var ret = new ent_asset(_conf, _logger, _httpClientFactory, _dbCon).doAssetInfoList(_dbCon);
             return ret;
         }
+
+        [HttpPost("doKrakenReturnPortfolio")]
+        public async Task<ActionResult<ApiResponse<List<cKrakenPortfolio>>>> DoKrakenReturnPortfolio()
+        {
+            var svc = new ent_kraken(_conf, _logger, _httpClientFactory, _dbCon);
+
+            var ret = await svc.doKrakenReturnPortfolio(_dbCon);
+
+            if (ret is null)
+                return StatusCode(502, "Upstream returned null.");
+
+            return Ok(ret);
+        }
+
+        [HttpPost("doMexcReturnPortfolio")]
+        public async Task<ActionResult<ApiResponse<List<cMexcPortfolio>>>> DoMexcReturnPortfolio()
+        {
+            var svc = new ent_mexc(_conf, _logger, _httpClientFactory, _dbCon);
+
+            var ret = await svc.doMexcReturnPortfolio(_dbCon);
+
+            if (ret is null)
+                return StatusCode(502, "Upstream returned null.");
+
+            return Ok(ret);
+        }
     }
 
 }
