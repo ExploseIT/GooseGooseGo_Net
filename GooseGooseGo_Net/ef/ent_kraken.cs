@@ -31,6 +31,9 @@ namespace GooseGooseGo_Net.ef
         private readonly string _encryptionKey;
         private readonly cApiDetails? _apiDetails;
 
+        Exception? exc = null;
+        private static readonly SemaphoreSlim _krakenGate = new(1, 1);
+
         public ent_kraken(
             IConfiguration conf,
             ILogger<mApp> logger,
@@ -245,7 +248,9 @@ public static Position BuildPosition(IEnumerable<KrakenTrade> trades)
         public async Task<KrakenEnvelope<Dictionary<string, KrakenTickerEntry>>?> doApi_TickerListAsync(dbContext _dbCon)
         {
             Exception? exc = null;
+            string retJson = "";
             KrakenEnvelope<Dictionary<string, KrakenTickerEntry>>? ret = null;
+            ApiResponse<string>? ret_ApiBase = null;
             try
             {
                 cApiParms p = new cApiParms
@@ -255,7 +260,12 @@ public static Position BuildPosition(IEnumerable<KrakenTrade> trades)
                     apDoSign = false
                 };
 
-                string retJson = await doApi_Base<object>(p, _dbCon);
+                ret_ApiBase = await doApi_Base<object>(p, _dbCon);
+
+                if (!ret_ApiBase.apiSuccess)
+                    throw new InvalidOperationException($"Kraken API call failed: {ret_ApiBase.apiMessage}");
+
+                retJson = ret_ApiBase.apiData!;
 
                 ret = JsonSerializer.Deserialize<KrakenEnvelope<Dictionary<string, KrakenTickerEntry>>?>(retJson);
             }
@@ -269,41 +279,47 @@ public static Position BuildPosition(IEnumerable<KrakenTrade> trades)
         public async Task<Dictionary<string, decimal>?> doApi_AssetBalanceAsync(dbContext _dbCon)
         {
             Dictionary<string, decimal>? ret = null;
+            ApiResponse<string>? ret_ApiBase = null;
+            string retJson = "";
             cApiParms p = new cApiParms
             {
                 apMethod = "POST",
                 apPath = "/0/private/Balance",
                 apDoSign = true
             };
-            string retJson = await doApi_Base<object>(p, _dbCon);
-
-            /*
-            Dictionary<string, decimal> FilterCurrentHoldings(
-                string balanceJson,
-                decimal minAmount = 0.01m,        // adjust “dust” threshold as you like
-                bool excludeFundingSuffixF = true  // excludes assets like BNB.F, ETH.F
-            )
-            */
-            decimal minAmount = 0.01m;
-            bool excludeFundingSuffixF = true;
+            try
             {
-                var env = JsonSerializer.Deserialize<KrakenEnvelope<Dictionary<string, string>>>(retJson)
-                          ?? throw new InvalidOperationException("Empty Kraken response.");
 
-                if (env.Error?.Count > 0) throw new InvalidOperationException(string.Join("; ", env.Error));
+                ret_ApiBase = await doApi_Base<object>(p, _dbCon);
+                if (!ret_ApiBase.apiSuccess)
+                    throw new InvalidOperationException($"Kraken API call failed: {ret_ApiBase.apiMessage}");
+                retJson = ret_ApiBase.apiData!;
 
-                var ci = CultureInfo.InvariantCulture;
+                decimal minAmount = 0.01m;
+                bool excludeFundingSuffixF = true;
+                {
+                    var env = JsonSerializer.Deserialize<KrakenEnvelope<Dictionary<string, string>>>(retJson)
+                              ?? throw new InvalidOperationException("Empty Kraken response.");
 
-                ret = (env.Result ?? new Dictionary<string, string>())
-                    .Select(kv => new
-                    {
-                        Asset = kv.Key,
-                        Amount = decimal.TryParse(kv.Value, NumberStyles.Any, ci, out var d) ? d : 0m
-                    })
-                    .Where(x =>
-                        x.Amount > minAmount &&
-                        (!excludeFundingSuffixF || !x.Asset.EndsWith(".F", StringComparison.OrdinalIgnoreCase)))
-                    .ToDictionary(x => x.Asset, x => x.Amount);
+                    if (env.Error?.Count > 0) throw new InvalidOperationException(string.Join("; ", env.Error));
+
+                    var ci = CultureInfo.InvariantCulture;
+
+                    ret = (env.Result ?? new Dictionary<string, string>())
+                        .Select(kv => new
+                        {
+                            Asset = kv.Key,
+                            Amount = decimal.TryParse(kv.Value, NumberStyles.Any, ci, out var d) ? d : 0m
+                        })
+                        .Where(x =>
+                            x.Amount > minAmount &&
+                            (!excludeFundingSuffixF || !x.Asset.EndsWith(".F", StringComparison.OrdinalIgnoreCase)))
+                        .ToDictionary(x => x.Asset, x => x.Amount);
+                }
+            }
+            catch (Exception ex)
+            {
+                exc = ex;
             }
             return ret;
         }
@@ -318,10 +334,23 @@ public static Position BuildPosition(IEnumerable<KrakenTrade> trades)
                 apPath = "/0/private/TradesHistory",
                 apDoSign = true
             };
-            string retJson = await doApi_Base<object>(p, _dbCon);
+            
+            KrakenEnvelope<KrakenTradesHistoryResult>? ret = null;
+            string retJson = "";
+            ApiResponse<string>? ret_ApiBase = null;
+            try
+            {
+                ret_ApiBase = await doApi_Base<object>(p, _dbCon);
+                if (!ret_ApiBase.apiSuccess)
+                    throw new InvalidOperationException($"Kraken API call failed: {ret_ApiBase.apiMessage}");
+                retJson = ret_ApiBase.apiData!;
 
-            var ret = JsonSerializer.Deserialize<KrakenEnvelope<KrakenTradesHistoryResult>?>(retJson);
-
+                ret = JsonSerializer.Deserialize<KrakenEnvelope<KrakenTradesHistoryResult>?>(retJson);
+            }
+            catch (Exception ex)
+            {
+                exc = ex;
+            }
             return ret;
         }
 
@@ -329,6 +358,8 @@ public static Position BuildPosition(IEnumerable<KrakenTrade> trades)
         {
             Exception? exc = null;
             KrakenEnvelope<Dictionary<string, KrakenTickerEntry>>? ret = null;
+            string retJson = "";
+            ApiResponse<string>? ret_ApiBase = null;
             try
             { 
                 cApiParms p = new cApiParms
@@ -337,7 +368,11 @@ public static Position BuildPosition(IEnumerable<KrakenTrade> trades)
                     apPath = "/0/public/Ticker",
                     apDoSign = true
                 };
-                string retJson = await doApi_Base(p, _dbCon, parms);
+
+                ret_ApiBase = await doApi_Base<object>(p, _dbCon);
+                if (!ret_ApiBase.apiSuccess)
+                    throw new InvalidOperationException($"Kraken API call failed: {ret_ApiBase.apiMessage}");
+                retJson = ret_ApiBase.apiData!;
 
                 ret = JsonSerializer.Deserialize<KrakenEnvelope<Dictionary<string, KrakenTickerEntry>>?>(retJson);
             }
@@ -349,63 +384,123 @@ public static Position BuildPosition(IEnumerable<KrakenTrade> trades)
             return ret;
         }
 
-        public async Task<string> doApi_Base<T>(cApiParms p, dbContext _dbCon, T? parms = default)
+        public async Task<ApiResponse<string>> doApi_Base<T>(cApiParms p, dbContext _dbCon, T? parms = default)
     where T : class
         {
-            var environment = _apiDetails!.apidet_api_url!.TrimEnd('/');
-            var url = environment + p.apPath;
+            ApiResponse<string> ret = new ApiResponse<string>();
+            ret.apiData = "";
 
-            // Nonce is required for private calls
-            var nonce = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString();
+            try
+            {
+                var environment = _apiDetails!.apidet_api_url!.TrimEnd('/');
+                var url = environment + p.apPath;
 
-            // Convert parameters (object or dictionary) into key-value pairs
-            var form = new List<KeyValuePair<string, string>>
+                // Nonce is required for private calls
+                //var nonce = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString();
+                // Nonce is required for private calls
+                var nonce = NextNonce().ToString();  // 👈 replaces ToUnixTimeMilliseconds()
+
+                // Convert parameters (object or dictionary) into key-value pairs
+                var form = new List<KeyValuePair<string, string>>
     {
         new("nonce", nonce)
     };
 
-            if (parms != null)
-            {
-                // Convert the object’s public properties into key=value pairs
-                foreach (var prop in parms.GetType().GetProperties())
+                if (parms != null)
                 {
-                    var name = prop.Name;
-                    var value = prop.GetValue(parms)?.ToString() ?? "";
-                    form.Add(new KeyValuePair<string, string>(name, value));
+                    // Convert the object’s public properties into key=value pairs
+                    foreach (var prop in parms.GetType().GetProperties())
+                    {
+                        var name = prop.Name;
+                        var value = prop.GetValue(parms)?.ToString() ?? "";
+                        form.Add(new KeyValuePair<string, string>(name, value));
+                    }
                 }
+
+                var formBody = new FormUrlEncodedContent(form);
+                var postDataStr = await formBody.ReadAsStringAsync();
+
+                // Compute Kraken signature if required
+                string sig = "";
+                if (p.apDoSign && !string.IsNullOrEmpty(_apiDetails!.apidet_secret))
+                    sig = KrakenSign(p.apPath, postDataStr, nonce, _apiDetails!.apidet_secret!);
+
+                // Build the request
+                var req = new HttpRequestMessage(HttpMethod.Post, url)
+                {
+                    Content = formBody
+                };
+
+                if (p.apDoSign && !string.IsNullOrEmpty(_apiDetails!.apidet_key))
+                {
+                    req.Headers.Add("API-Key", _apiDetails!.apidet_key!);
+                    req.Headers.Add("API-Sign", sig);
+                }
+
+                var client = _httpClientFactory.CreateClient();
+                var resp = await client.SendAsync(req);
+                
+
+                ret.apiData = await resp.Content.ReadAsStringAsync();
+                if (!resp.IsSuccessStatusCode)
+                    throw new HttpRequestException($"{(int)resp.StatusCode} {resp.ReasonPhrase}: {ret.apiData}");
+
+                if (LooksLikeApiError(ret.apiData, out var krakenErrMsg))
+                    throw new InvalidOperationException(krakenErrMsg);
             }
-
-            var formBody = new FormUrlEncodedContent(form);
-            var postDataStr = await formBody.ReadAsStringAsync();
-
-            // Compute Kraken signature if required
-            string sig = "";
-            if (p.apDoSign && !string.IsNullOrEmpty(_apiDetails!.apidet_secret))
-                sig = KrakenSign(p.apPath, postDataStr, nonce, _apiDetails!.apidet_secret!);
-
-            // Build the request
-            var req = new HttpRequestMessage(HttpMethod.Post, url)
+            catch (Exception ex)
             {
-                Content = formBody
-            };
-
-            if (p.apDoSign && !string.IsNullOrEmpty(_apiDetails!.apidet_key))
-            {
-                req.Headers.Add("API-Key", _apiDetails!.apidet_key!);
-                req.Headers.Add("API-Sign", sig);
+                exc = ex;
+                ret.apiMessage = exc.Message;
+                ret.apiSuccess = false;
             }
-
-            var client = _httpClientFactory.CreateClient();
-            var resp = await client.SendAsync(req);
-            var ret = await resp.Content.ReadAsStringAsync();
-
-            if (!resp.IsSuccessStatusCode)
-                throw new HttpRequestException($"{(int)resp.StatusCode} {resp.ReasonPhrase}: {ret}");
-
             return ret;
         }
 
- 
+        private static long _lastNonce = 0;
+
+        private static long NextNonce()
+        {
+            // microseconds since epoch
+            long us = (long)(DateTime.UtcNow - DateTime.UnixEpoch).TotalMilliseconds * 1000L
+                      + Random.Shared.Next(0, 1000); // add a bit of jitter within the ms
+
+            while (true)
+            {
+                long prev = Interlocked.Read(ref _lastNonce);
+                long next = us <= prev ? prev + 1 : us;
+                if (Interlocked.CompareExchange(ref _lastNonce, next, prev) == prev)
+                    return next;
+            }
+        }
+
+        private static bool LooksLikeApiError(string json, out string message)
+        {
+            message = "";
+            try
+            {
+                using var doc = JsonDocument.Parse(json);
+                if (doc.RootElement.TryGetProperty("error", out var arr) &&
+                    arr.ValueKind == JsonValueKind.Array)
+                {
+                    var msgs = arr.EnumerateArray()
+                                  .Select(e => e.ValueKind == JsonValueKind.String ? e.GetString() : null)
+                                  .Where(s => !string.IsNullOrWhiteSpace(s))
+                                  .ToArray();
+                    if (msgs.Length > 0)
+                    {
+                        message = string.Join("; ", msgs!);
+                        return true;
+                    }
+                }
+            }
+            catch
+            {
+                // ignore parse errors; treat as not a Kraken error envelope
+            }
+            return false;
+        }
+
         private static string KrakenSign(string uriPath, string postData, string nonce, string secretB64)
         {
             using var sha256 = SHA256.Create();

@@ -50,12 +50,12 @@
     <table id="tab_mexc_portfolio" class="col-12">
         <thead>
             <tr>
-                <th>Exchange</th>
-                <th>Qty Held</th>
-                <th>Avg Cost</th>
-                <th>Market Value</th>
+                <th>Asset</th>
+                <th>Market value</th>
+                <th>Current price</th>
+                <th>Buy Qty</th>
+                <th>Average cost</th>
                 <th>Unrealised PnL</th>
-                <th>Realised PnL</th>
                 <th>Fees Paid</th>
             </tr>
         </thead>
@@ -141,6 +141,7 @@
     var l_mexc_portfolio = null;
     var kpCountDown = 0;
     var mexcCountDown = 0;
+    var MexcCount = 0;
 
     function doContinueSwingListUp(ret) {
         l_aps_up = ret.data.apiData;
@@ -211,23 +212,29 @@
          $("#tb_mexc_portfolio").empty();
          if (l_mexc_portfolio !== null) {
              for (let i=0;i<l_mexc_portfolio.length;i++) {
-                 let mp = l_mexc_portfolio[i];
-                 let tr = $("<tr></tr>");
-                     let td_exchange = $("<td></td>").text(mp.mpAsset);
-                     let td_qtyheld = $("<td></td>").text(mp.mpQtyHeld);
-                     let td_avgcost = $("<td></td>").text(mp.mpAvgCost + " USD");
-                     let td_marketvalue = $("<td></td>").text(mp.mpMarketValue + " USD");
-                     let td_unrealizedPnl = $("<td></td>").text(mp.mpUnrealizedPnl + " USD");
-                     let td_realizedPnl = $("<td></td>").text(mp.mpRealizedPnl + " USD");
-                     let td_feespaid = $("<td></td>").text(mp.mpFeesPaid + " USD");
-                     tr.append(td_exchange);
-                     tr.append(td_qtyheld);
-                     tr.append(td_avgcost);
+                 let mp_il = l_mexc_portfolio[i];
+                 if (mp_il.items.length > 0) {
+                     let mp = mp_il.items[0];
+                     let tr = $("<tr></tr>");
+                     let td_symbol = $("<td></td>").text(mp.mpolsSymbol);
+                     let td_marketvalue = $("<td></td>").text(mp.mpolsMarketValue + " USD");
+                     let td_currentprice = $("<td></td>").text(mp.mpolsCurrentPrice + " USD");
+                     let td_buyqty = $("<td></td>").text(mp.mpolsBuyQty);
+                     let td_avgcost = $("<td></td>").text(mp.mpolsBuyAvgCost + " USD");
+                     let td_unrealizedPnl = $("<td></td>").text(mp.mpolsUnrealizedPnl + " USD");
+                     //let td_realizedPnl = $("<td></td>").text(mp.mpolsRealizedPnlFromThisLot + " USD");
+                     let td_feespaid = $("<td></td>").text(mp.mpolsBuyFeesQuote + " USD");
+                     tr.append(td_symbol);
                      tr.append(td_marketvalue);
+                     tr.append(td_currentprice);
+                     tr.append(td_buyqty);
+                     tr.append(td_avgcost);
                      tr.append(td_unrealizedPnl);
-                     tr.append(td_realizedPnl);
+                     //tr.append(td_realizedPnl);
                      tr.append(td_feespaid);
                      $("#tb_mexc_portfolio").append(tr);
+                     MexcCount++;
+                }
              }
          }
      }

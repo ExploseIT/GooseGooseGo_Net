@@ -45,11 +45,11 @@ namespace GooseGooseGo_Net.Controllers
             List<MexcTickerEntry>? mexcData = await _e_mexc.doApi_TickerListAsync(_dbCon);
 
             // Get Kraken Portfolio Data
-            KrakenEnvelope<KrakenTradesHistoryResult>? krakenTradesHistoryData = await _e_kraken.doApi_TradesHistoryAsync(_dbCon);
-            Dictionary<string, decimal>? krakenBalanceData = await _e_kraken.doApi_AssetBalanceAsync(_dbCon);
-            var _krakenTickerParms = _e_kraken.doGetTickerPairsFromBalance(krakenBalanceData);
-            KrakenEnvelope<Dictionary<string, KrakenTickerEntry>>? krakenTickerData = await _e_kraken.doApi_TickerAsync(_dbCon,_krakenTickerParms);
-            var _cKrakenPortfolio = _e_kraken.doGetPortfolio(_dbCon, krakenTradesHistoryData, krakenBalanceData, krakenTickerData);
+            //KrakenEnvelope<KrakenTradesHistoryResult>? krakenTradesHistoryData = await _e_kraken.doApi_TradesHistoryAsync(_dbCon);
+            //Dictionary<string, decimal>? krakenBalanceData = await _e_kraken.doApi_AssetBalanceAsync(_dbCon);
+            //var _krakenTickerParms = _e_kraken.doGetTickerPairsFromBalance(krakenBalanceData);
+            //KrakenEnvelope<Dictionary<string, KrakenTickerEntry>>? krakenTickerData = await _e_kraken.doApi_TickerAsync(_dbCon,_krakenTickerParms);
+            //var _cKrakenPortfolio = _e_kraken.doGetPortfolio(_dbCon, krakenTradesHistoryData, krakenBalanceData, krakenTickerData);
 
             // Get Mexc Portfolio Data
             cMexcAccounts? mexcAccountsData = await _e_mexc.doApi_AccountsAsync(_dbCon);

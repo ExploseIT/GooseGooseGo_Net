@@ -54,7 +54,7 @@ namespace GooseGooseGo_Net.Controllers
         }
 
         [HttpPost("doMexcReturnPortfolio")]
-        public async Task<ActionResult<ApiResponse<List<cMexcPortfolio>>>> DoMexcReturnPortfolio()
+        public async Task<ActionResult<ApiResponse<List<cMexcOrderLotSummaryGroup<string, cMexcOrderLotSummary>>>>> DoMexcReturnPortfolio()
         {
             var svc = new ent_mexc(_conf, _logger, _httpClientFactory, _dbCon);
 

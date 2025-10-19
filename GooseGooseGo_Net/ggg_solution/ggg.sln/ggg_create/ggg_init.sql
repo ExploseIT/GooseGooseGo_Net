@@ -41,9 +41,12 @@ create procedure spAssetWatchInit
 as
 begin
 
+if exists (select * from sys.tables where name='tblAssetExchange')
 drop table tblAssetExchange
 
+if exists (select * from sys.tables where name='tblAssetWatch')
 drop table tblAssetWatch
+
 
 if not exists (select * from sys.tables where name='tblAssetExchange')
 CREATE TABLE [dbo].[tblAssetExchange](
@@ -51,7 +54,7 @@ CREATE TABLE [dbo].[tblAssetExchange](
 	[asxExchange] [nvarchar](300) NOT NULL,
 	[asxDTAdded] datetime NOT NULL,
 	[asxEnabled] [bit] NOT NULL,
- CONSTRAINT [PK_tblAssetSource] PRIMARY KEY CLUSTERED 
+ CONSTRAINT [PK_tblAssetExchange] PRIMARY KEY CLUSTERED 
 (
 	[asxId] ASC
 )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
