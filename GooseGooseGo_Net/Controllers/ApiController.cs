@@ -65,6 +65,24 @@ namespace GooseGooseGo_Net.Controllers
 
             return Ok(ret);
         }
+
+        // POST api/mexc/sell100
+        [HttpPost("doMexcSell100")]
+        public async Task<ActionResult<object>> doMexcSell100(cMexcSellParms p, CancellationToken ct)
+        {
+            var _svc = new ent_mexc(_conf, _logger, _httpClientFactory, _dbCon);
+            // 1) pre-check
+            var preview = await _svc.doMexcPreviewSell100Async(_dbCon, p, ct);
+
+            if (!string.IsNullOrEmpty(preview.ReasonIfBlocked))
+                return BadRequest(new { ok = false, preview });
+
+            if (p.mxsellDryRun) return Ok(new { ok = true, preview });
+
+            // 2) execute
+            var result = await _svc.doMexcExecuteSell100Async(_dbCon, p, ct);
+            return Ok(new { ok = true, preview, result });
+        }
     }
 
 }

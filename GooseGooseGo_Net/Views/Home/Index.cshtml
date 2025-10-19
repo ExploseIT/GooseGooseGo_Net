@@ -10,20 +10,29 @@
     }
 
 <div class="container text-center">
-  <div class="row">
-    <div class="col text-start">
-      <b>USD/USDT asset count <span class="text-primary" id="span_asset_item_count"></span></b>
-    </div>
-    <div class="col">
-      <b>Date / time <span class="text-primary" id="span_asset_date_time"></span></b>
-    </div>
-    <div class="col">
-    &nbsp;
-    </div>
-        <div class="col">
-            &nbsp;
-        </div>
+  <div class="row g-2 align-items-center">
+  <div class="col text-start">
+    <b>USD/USDT asset count <span class="text-primary" id="span_asset_item_count"></span></b>
   </div>
+  <div class="col">
+    <b>Date / time <span class="text-primary" id="span_asset_date_time"></span></b>
+  </div>
+
+<div class="row g-2 align-items-center">
+  <!-- other cols -->
+  <div class="col-3">
+    <input id="ip_threshold" type="number" step="0.1" value="-13.0"
+           class="form-control w-100" />
+  </div>
+  <!-- other cols -->
+</div>
+
+
+  <div class="col-auto">
+    <button id="enableSound" class="btn btn-sm btn-primary">Enable sound</button>
+  </div>
+</div>
+
 </div>
 <div class="row">
     <div class="col-12"><b>Kraken Portfolio</b></div>
@@ -65,41 +74,31 @@
     </table>
 </div>
 
-<div class="row">
-    <div class="col-5">
-    <div class="col-12">Up Swing</div>
-        <table id="tab_aps_up" class="col-12">
-        <thead>
-             <tr>
-                <th>Exchange</th>
-                <th>Pair</th>
-                <th>Price</th>
-                <th>% change</th>
-            </tr>
-        </thead>
-
-        <tbody id="tb_aps_up">
-
-        </tbody>
-    </table>
+<div class="row g-3">
+    <div class="col-12 col-lg-6">
+        <div class="col-12 fw-bold mb-2">Up Swing</div>
+        <div class="table-responsive">
+            <table id="tab_aps_up" class="table table-sm mb-0">
+                <thead> <tr> <th>Exchange</th> <th>Pair</th> <th>Price</th> <th>% change</th> </tr> </thead>
+                <tbody id="tb_aps_up"> </tbody>
+            </table>
+        </div>
     </div>
-    <div class="col-5">
-        <div class="col-12">Down Swing</div>
-        <table id="tab_aps_down" class="col-12">
-            <thead>
-                <tr>
-                    <th>Exchange</th>
-                    <th>Pair</th>
-                    <th>Price</th>
-                    <th>% change</th>
-                </tr>
-            </thead>
 
-            <tbody id="tb_aps_down">
-            </tbody>
-        </table>
+    <div class="col-12 col-lg-6">
+        <div class="col-12 fw-bold mb-2">Down Swing</div>
+        <div class="table-responsive">
+            <table id="tab_aps_down" class="table table-sm mb-0">
+                <thead> <tr> <th>Exchange</th> <th>Pair</th> <th>Price</th> <th>% change</th> </tr> </thead>
+                <tbody id="tb_aps_down"> </tbody>
+            </table>
+        </div>
     </div>
 </div>
+<audio id="alertSound2" preload="auto">
+  <source src="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABYAZGF0YQAAAAAA" type="audio/wav">
+</audio>
+
 <script>
 
     $(document).ready(function () {
@@ -208,36 +207,42 @@
         doDisplayKrakenPortfolio();
         doDisplayMexcPortfolio();
     }
-     function doDisplayMexcPortfolio() {
-         $("#tb_mexc_portfolio").empty();
-         if (l_mexc_portfolio !== null) {
-             for (let i=0;i<l_mexc_portfolio.length;i++) {
-                 let mp_il = l_mexc_portfolio[i];
-                 if (mp_il.items.length > 0) {
-                     let mp = mp_il.items[0];
-                     let tr = $("<tr></tr>");
-                     let td_symbol = $("<td></td>").text(mp.mpolsSymbol);
-                     let td_marketvalue = $("<td></td>").text(mp.mpolsMarketValue + " USD");
-                     let td_currentprice = $("<td></td>").text(mp.mpolsCurrentPrice + " USD");
-                     let td_buyqty = $("<td></td>").text(mp.mpolsBuyQty);
-                     let td_avgcost = $("<td></td>").text(mp.mpolsBuyAvgCost + " USD");
-                     let td_unrealizedPnl = $("<td></td>").text(mp.mpolsUnrealizedPnl + " USD");
-                     //let td_realizedPnl = $("<td></td>").text(mp.mpolsRealizedPnlFromThisLot + " USD");
-                     let td_feespaid = $("<td></td>").text(mp.mpolsBuyFeesQuote + " USD");
-                     tr.append(td_symbol);
-                     tr.append(td_marketvalue);
-                     tr.append(td_currentprice);
-                     tr.append(td_buyqty);
-                     tr.append(td_avgcost);
-                     tr.append(td_unrealizedPnl);
-                     //tr.append(td_realizedPnl);
-                     tr.append(td_feespaid);
-                     $("#tb_mexc_portfolio").append(tr);
-                     MexcCount++;
-                }
-             }
-         }
-     }
+
+function doDisplayMexcPortfolio() {
+      $("#tb_mexc_portfolio").empty();
+      if (l_mexc_portfolio === null) return;
+
+      const dpQty   = decimalsFor('qty');
+      const dpPrice = decimalsFor('price');
+      const dpValue = decimalsFor('value');
+      const dpPnl   = decimalsFor('pnl');
+
+      for (let i = 0; i < l_mexc_portfolio.length; i++) {
+        const mp_il = l_mexc_portfolio[i];
+        if (!mp_il.items || mp_il.items.length === 0) continue;
+
+        const mp = mp_il.items[0];
+        const tr = $("<tr></tr>");
+
+        tr.append($("<td></td>").text(mp.mpolsSymbol));
+        tr.append($("<td></td>").text(`${fmt(mp.mpolsMarketValue, dpValue)} USD`));
+        tr.append($("<td></td>").text(`${fmt(mp.mpolsCurrentPrice, dpPrice)} USD`));
+        tr.append($("<td></td>").text(fmt(mp.mpolsBuyQty, dpQty)));
+        tr.append($("<td></td>").text(`${fmt(mp.mpolsBuyAvgCost, dpPrice)} USD`));
+
+        const pnlVal = Number(mp.mpolsUnrealizedPnl) || 0;
+        const pnlSpan = $(`<span class="${classifyPnl(pnlVal)}">${fmt(pnlVal, dpPnl)} USD</span>`);
+        tr.append($("<td></td>").append(pnlSpan));
+
+        tr.append($("<td></td>").text(`${fmt(mp.mpolsBuyFeesQuote, dpValue)} USD`));
+
+        $("#tb_mexc_portfolio").append(tr);
+        MexcCount++;
+
+        // trigger alert if condition met (throttled)
+        maybeAlert(mp.mpolsSymbol, pnlVal);
+      }
+    }
 
     function doDisplayKrakenPortfolio() {
         $("#tb_kraken_portfolio").empty();
@@ -305,6 +310,146 @@
                 }
             }
     }
+
+    // decide decimals per breakpoint (tweak to taste)
+    function decimalsFor(kind) {
+      const w = window.innerWidth;
+      // You can vary by "kind": 'qty' | 'price' | 'value' | 'pnl' etc.
+      if (kind === 'qty') {
+        if (w >= 1200) return 8;
+        if (w >= 992)  return 6;
+        if (w >= 768)  return 4;
+        return 3;
+      }
+      if (kind === 'price') {
+        if (w >= 1200) return 6;
+        if (w >= 992)  return 5;
+        if (w >= 768)  return 4;
+        return 3;
+      }
+      // value/pnl typically don’t need as many
+      if (w >= 1200) return 6;
+      if (w >= 992)  return 4;
+      if (w >= 768)  return 3;
+      return 2;
+    }
+
+    // generic formatter
+    function fmt(n, dp) {
+      const num = Number(n) || 0;
+      return new Intl.NumberFormat('en-GB', {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: dp
+      }).format(num);
+    }
+
+ function classifyPnl(v) {
+  if (v >= 0)          return 'pnl-good';
+  if (v >= -5.0)       return 'pnl-warn';  // your requested threshold
+  return 'pnl-bad';
+}
+
+function fmt(n, dp) {
+  const num = Number(n) || 0;
+  return new Intl.NumberFormat('en-GB', { maximumFractionDigits: dp }).format(num);
+}
+
+// optional: throttle sound per symbol
+const lastAlertAt = new Map(); // symbol -> epoch ms
+const ALERT_COOLDOWN_MS = 60_000;
+
+function maybeAlert(symbol, pnl) {
+      // read, trim, and convert to a JS number
+      const raw = String($("#ip_threshold").val() ?? "").trim();
+
+      // allow "1,234.56" style by stripping commas
+      const ip_threshold_number = Number(raw.replace(/,/g, ""));
+
+      if (Number.isNaN(ip_threshold_number)) {
+        // choose a sensible default if user input is invalid
+        console.warn("Invalid threshold; using default -5.0");
+        return; // or: const ip_threshold_number = -5.0;
+      }
+
+      if (pnl >= ip_threshold_number) {
+    const now = Date.now();
+    const last = lastAlertAt.get(symbol) || 0;
+    if (now - last > ALERT_COOLDOWN_MS) {
+      lastAlertAt.set(symbol, now);
+      // play the sound
+      const el = document.getElementById('alertSound');
+      if (el && el.play) {
+          el.currentTime = 0;
+          el.play().catch(()=>{});
+      }
+      else if (typeof playBeep === 'function') {
+          try {
+              playBeep();
+          }
+          catch {}
+      }
+    }
+  }
+}
+
+let audioReady = false;
+let audioCtx;
+
+function ensureAudioReady() {
+  if (audioReady) return true;
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  // resume context (required on mobile)
+  audioCtx.resume();
+  // play a 0-length (or very short, very quiet) tone to unlock
+  const o = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  g.gain.value = 0.0001;
+  o.connect(g); g.connect(audioCtx.destination);
+  o.start();
+  o.stop(audioCtx.currentTime + 0.02);
+  audioReady = true;
+  return true;
+}
+
+function playBeep(multiplier = 4) {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+  const o = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  o.type = 'sine';
+  o.frequency.value = 880;
+
+  o.connect(g); g.connect(audioCtx.destination);
+
+  const baseMs = 200;                   // your original 200 ms
+  const durMs  = baseMs * multiplier;   // 4x → 800 ms
+  const now    = audioCtx.currentTime;
+  const durSec = durMs / 1000;
+
+  // simple envelope to remove clicks
+  g.gain.setValueAtTime(0.0001, now);
+  g.gain.linearRampToValueAtTime(0.04, now + 0.01);          // 10 ms fade in
+  g.gain.setValueAtTime(0.04, now + durSec - 0.02);
+  g.gain.linearRampToValueAtTime(0.0001, now + durSec);       // 20 ms fade out
+
+  o.start(now);
+  o.stop(now + durSec);
+}
+
+document.getElementById('enableSound').addEventListener('click', () => {
+  ensureAudioReady();
+  // optional: hide the button after enabling
+  document.getElementById('enableSound').style.display = 'none';
+});
+
+// Optional: also unlock on first interaction anywhere
+window.addEventListener('pointerdown', () => {
+  if (!audioReady) 
+  ensureAudioReady();
+},{ once:true });
+
+
+
 </script>
 
 

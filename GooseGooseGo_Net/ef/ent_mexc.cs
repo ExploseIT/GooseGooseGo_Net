@@ -8,6 +8,7 @@ using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Data;
 using System.Diagnostics;
+using System.Globalization;
 using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text;
@@ -321,7 +322,7 @@ namespace GooseGooseGo_Net.ef
                 apMethod = "GET",
                 apPath = "/api/v3/account",
             };
-            string retJson = await doApi_Base(p, _dbCon);
+            string retJson = await doApi_Base(_dbCon, p);
 
             var ret = JsonSerializer.Deserialize<cMexcAccounts>(retJson);
 
@@ -335,7 +336,7 @@ namespace GooseGooseGo_Net.ef
                 apMethod = "GET",
                 apPath = "/api/v3/ticker/24hr"
             };
-            string retJson = await doApi_Base(p, _dbCon);
+            string retJson = await doApi_Base(_dbCon, p);
 
             var ret = JsonSerializer.Deserialize<List<MexcTickerEntry>>(retJson);
 
@@ -343,7 +344,7 @@ namespace GooseGooseGo_Net.ef
         }
 
         // balances (you already have)
-        public async Task<cMexcAccounts?> doApi_AccountsAsync(dbContext _dbCon)
+        public async Task<cMexcAccounts?> doApi_AccountsAsync(dbContext _dbCon, CancellationToken ct = default)
         {
             cMexcAccounts? ret = null;
             var p = new cApiParms { 
@@ -352,7 +353,7 @@ namespace GooseGooseGo_Net.ef
                 apDoSign = true,              // <<— required for private endpoints
                 apQuery = new()
             };
-            string retJson = await doApi_Base(p, _dbCon);           // your HMAC-signed/base method
+            string retJson = await doApi_Base(_dbCon, p, ct);           // your HMAC-signed/base method
             ret =  JsonSerializer.Deserialize<cMexcAccounts>(retJson);
 
             return ret;
@@ -363,7 +364,7 @@ namespace GooseGooseGo_Net.ef
         {
             List<MexcTickerPrice>? ret = null;
             var p = new cApiParms { apMethod = "GET", apPath = "/api/v3/ticker/price", apDoSign = false };
-            string retJson = await doApi_Base(p, _dbCon); // public endpoint
+            string retJson = await doApi_Base(_dbCon, p); // public endpoint
             ret = JsonSerializer.Deserialize<List<MexcTickerPrice>>(retJson)
                    ?? new List<MexcTickerPrice>();
             return ret;
@@ -532,7 +533,7 @@ namespace GooseGooseGo_Net.ef
                     apDoSign = true   // 🔴 REQUIRED for private endpoints
                 };
 
-                var retJson = await doApi_Base(p, _dbCon); // this adds timestamp/signature + header
+                var retJson = await doApi_Base(_dbCon, p); // this adds timestamp/signature + header
                 ret = JsonSerializer.Deserialize<List<MexcMyTrade>>(retJson)
                               ?? new List<MexcMyTrade>();
             }
@@ -572,7 +573,110 @@ namespace GooseGooseGo_Net.ef
                 $"{Uri.EscapeDataString(kv.Key)}={Uri.EscapeDataString(kv.Value ?? string.Empty)}"));
         }
 
-        public async Task<string> doApi_Base(cApiParms p, dbContext _dbCon, CancellationToken ct = default)
+        public async Task<cMexcExchangeInfo> doApi_ExchangeInfoAsync(dbContext _dbCon, string symbol, CancellationToken ct)
+        {
+            var p = new cApiParms { apMethod = "GET", apPath = "/api/v3/exchangeInfo", apQuery = new() { ["symbol"] = symbol } };
+            var json = await doApi_Base(_dbCon, p, ct);
+            return JsonSerializer.Deserialize<cMexcExchangeInfo>(json)!;
+        }
+
+        public async Task<cMexcBookTicker?> doApi_TickerBookAsync(dbContext _dbCon, string symbol, CancellationToken ct)
+        {
+            var p = new cApiParms { apMethod = "GET", apPath = "/api/v3/ticker/bookTicker", apQuery = new() { ["symbol"] = symbol } };
+            var json = await doApi_Base(_dbCon, p, ct);
+            return JsonSerializer.Deserialize<cMexcBookTicker>(json);
+        }
+
+        public async Task<cMexcSellPreview> doMexcPreviewSell100Async(dbContext _dbCon, cMexcSellParms p, CancellationToken ct = default)
+        {
+            string symbol = p.mxsellSymbol.ToUpperInvariant();                // e.g., "JUMPUSDT"
+            var baseAsset = symbol.EndsWith("USDT") ? symbol[..^4] :
+                             symbol.EndsWith("USDC") ? symbol[..^4] :
+                             symbol.EndsWith("USD") ? symbol[..^3] : throw new("Unsupported quote");
+
+            // a) balance (free only for spot)
+            var acct = await doApi_AccountsAsync(_dbCon, ct); // signed
+            var bal = acct?.balances?.FirstOrDefault(b => string.Equals(b.asset, baseAsset, StringComparison.OrdinalIgnoreCase));
+            var free = ParseDec(bal?.free);
+
+            if (free <= 0) return new(symbol, 0, 0, 0, 0, "No free balance.");
+
+            // b) symbol filters
+            cMexcExchangeInfo ex = await doApi_ExchangeInfoAsync(_dbCon, symbol, ct); // GET /api/v3/exchangeInfo?symbol=...
+            //var lot = ex.filters.First(f => f.filterType == "LOT_SIZE");
+            //var priceF = ex.filters.First(f => f.filterType == "PRICE_FILTER");
+            //var notionalF = ex.filters.FirstOrDefault(f => f.filterType == "MIN_NOTIONAL"); // sometimes present
+            var sym = ex.symbols.FirstOrDefault()
+          ?? throw new InvalidOperationException($"Symbol '{symbol}' not found in exchangeInfo.");
+
+            var lot = sym.filters.FirstOrDefault(f => f.filterType == "LOT_SIZE")
+                      ?? throw new InvalidOperationException("LOT_SIZE filter missing.");
+
+            var priceF = sym.filters.FirstOrDefault(f => f.filterType == "PRICE_FILTER")
+                         ?? throw new InvalidOperationException("PRICE_FILTER missing.");
+
+            var notionalF = sym.filters.FirstOrDefault(f => f.filterType == "MIN_NOTIONAL"); // may be null on some pairs
+
+            var stepSize = ParseDec(lot.stepSize);
+            var minQty = ParseDec(lot.minQty);
+            var tickSize = ParseDec(priceF.tickSize);
+            var minNotion = notionalF != null ? ParseDec(notionalF.minNotional) : 0;
+
+            // c) best bid for estimate
+            var book = await doApi_TickerBookAsync(_dbCon, symbol, ct); // /api/v3/ticker/bookTicker?symbol=...
+            var bid = ParseDec(book?.bidPrice);
+            if (bid <= 0) return new(symbol, free, 0, 0, 0, "No bid price.");
+
+            // d) compute sellable qty (floor to stepSize)
+            decimal qty = FloorToStep(free, stepSize);
+            if (qty < minQty) return new(symbol, free, 0, bid, 0, $"Below minQty ({minQty}).");
+
+            // e) min notional check (if present)
+            var estProceeds = qty * bid;
+            if (minNotion > 0 && estProceeds < minNotion)
+            {
+                // try bump down to meet minNotional via flooring
+                var needed = minNotion / bid;
+                if (qty < needed) return new(symbol, free, 0, bid, 0, $"Below minNotional ({minNotion}).");
+                qty = FloorToStep(needed, stepSize);
+                estProceeds = qty * bid;
+            }
+
+            return new(symbol, free, qty, bid, estProceeds);
+        }
+
+        public async Task<object> doMexcExecuteSell100Async(dbContext _dbCon, cMexcSellParms pIn, CancellationToken ct)
+        {
+            // POST /api/v3/order (signed)
+            var p = new cApiParms
+            {
+                apMethod = "POST",
+                apPath = "/api/v3/order",
+                apDoSign = true,
+                apQuery = new Dictionary<string, string>
+                {
+                    ["symbol"] = pIn.mxsellSymbol,
+                    ["side"] = "SELL",
+                    ["type"] = "MARKET",
+                    ["quantity"] = pIn.mxsellQty.ToString(CultureInfo.InvariantCulture),
+                    ["newOrderRespType"] = "RESULT"
+                }
+            };
+            var json = await doApi_Base(_dbCon, p, ct);
+            // Return raw or map to your typed response
+            return JsonSerializer.Deserialize<JsonElement>(json);
+        }
+
+        // helpers
+        // private static decimal ParseDec(string? s) => decimal.TryParse(s, NumberStyles.Any, CultureInfo.InvariantCulture, out var d) ? d : 0m;
+        private static decimal FloorToStep(decimal value, decimal step)
+        {
+            if (step <= 0) return value;
+            var steps = Math.Floor(value / step);
+            return steps * step;
+        }
+
+        public async Task<string> doApi_Base(dbContext _dbCon, cApiParms p, CancellationToken ct = default)
         {
             string ret = "";
             HttpResponseMessage? resp = null;
@@ -753,6 +857,24 @@ namespace GooseGooseGo_Net.ef
 
     // --- Model Classes ---
 
+    public class cMexcExchangeInfo { public List<cMexcSymbol> symbols { get; set; } = new(); public cMexcSymbol First() => symbols.First(); }
+    public class cMexcSymbol { public string symbol { get; set; } = ""; public List<cMexcFilter> filters { get; set; } = new(); }
+    public class cMexcFilter { public string filterType { get; set; } = ""; public string minQty { get; set; } = "0"; public string stepSize { get; set; } = "0"; public string tickSize { get; set; } = "0"; public string minNotional { get; set; } = "0"; }
+    public class cMexcBookTicker { public string symbol { get; set; } = ""; public string bidPrice { get; set; } = "0"; public string bidQty { get; set; } = "0"; }
+
+    public record cMexcSellRequest(string Symbol, bool DryRun = true);
+
+    public record cMexcSellPreview(
+        string Symbol, decimal FreeQty, decimal QtyToSell, decimal BidPrice,
+        decimal EstProceeds, string ReasonIfBlocked = "");
+
+
+    public class cMexcSellParms
+    {
+        public string mxsellSymbol { get; set; } = "";
+        public decimal mxsellQty { get; set; } = 100.0m;
+        public bool mxsellDryRun { get; set; } = true;
+    }
 
     public class cMexcOrderLotSummaryGroup<TKey, TItem>
     {

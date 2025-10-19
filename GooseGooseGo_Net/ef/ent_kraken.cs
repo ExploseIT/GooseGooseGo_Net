@@ -115,7 +115,12 @@ namespace GooseGooseGo_Net.ef
                 Dictionary<string, decimal>? krakenBalanceData = await doApi_AssetBalanceAsync(_dbCon);
                 var _krakenTickerParms = doGetTickerPairsFromBalance(krakenBalanceData);
                 KrakenEnvelope<Dictionary<string, KrakenTickerEntry>>? krakenTickerData = await doApi_TickerAsync(_dbCon, _krakenTickerParms);
-                ret.apiData = doGetPortfolio(_dbCon, krakenTradesHistoryData, krakenBalanceData, krakenTickerData);
+                var _apiResp = doGetPortfolio(_dbCon, krakenTradesHistoryData, krakenBalanceData, krakenTickerData);
+                if(!_apiResp.apiSuccess)
+                {
+                    throw new InvalidOperationException($"Kraken doGetPortfolio call failed: {_apiResp.apiMessage}");
+                }
+                ret.apiData = _apiResp.apiData;
                 ret.apiSuccess = true;
             }
             catch (Exception ex)
@@ -126,76 +131,84 @@ namespace GooseGooseGo_Net.ef
             return ret;
         }
 
-        public List<cKrakenPortfolio> doGetPortfolio(dbContext _dbCon, KrakenEnvelope<KrakenTradesHistoryResult>? krakenTradesHistoryData, 
+        public ApiResponse<List<cKrakenPortfolio>> doGetPortfolio(dbContext _dbCon, KrakenEnvelope<KrakenTradesHistoryResult>? krakenTradesHistoryData, 
             Dictionary<string, decimal>? krakenBalanceData,
             KrakenEnvelope<Dictionary<string, KrakenTickerEntry>>? krakenTickerData)
         {
-            List<cKrakenPortfolio> ret = new List<cKrakenPortfolio>();
+            ApiResponse<List<cKrakenPortfolio>> ret = new ApiResponse<List<cKrakenPortfolio>>();
+            
+            ret.apiData = new List<cKrakenPortfolio>();
 
             decimal totalUsdValue = 0m;
             decimal totalUnrealizedPnl = 0m;
-
-            foreach (var bal in krakenBalanceData!) // Dictionary<string, decimal> e.g. { "SPICE": 123.45m }
+            try
             {
-                var asset = bal.Key;
-                var qtyHeld = bal.Value;
-                if (qtyHeld <= 0) continue;
-
-
-                var pair = asset + "USD"; // adjust if you prefer another quote
-
-                // Build a lookup so we can quickly get trades for "SPICEUSD", "BABYUSD", etc.
-                var tradesByPair = krakenTradesHistoryData?.Result?.Trades?
-                    .Values
-                    .Where(t => !string.IsNullOrEmpty(t.Pair))
-                    .GroupBy(t => t.Pair!)
-                    .ToDictionary(g => g.Key, g => g.AsEnumerable(), StringComparer.OrdinalIgnoreCase)
-                    ?? new Dictionary<string, IEnumerable<KrakenTrade>>(StringComparer.OrdinalIgnoreCase);
-
-                // For quick last prices:
-                var lastPriceByPair = krakenTickerData?.Result?
-                    .ToDictionary(
-                        kv => kv.Key,
-                        kv => decimal.TryParse(kv.Value.LastTrade?.FirstOrDefault(),
-                                               NumberStyles.Any, CultureInfo.InvariantCulture, out var d) ? d : 0m,
-                        StringComparer.OrdinalIgnoreCase
-                    ) ?? new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
-
-
-                if (!lastPriceByPair.TryGetValue(pair, out var lastPrice) || lastPrice <= 0)
-                    continue;
-
-                tradesByPair.TryGetValue(pair, out var tradesForPair);
-                var pos = tradesForPair is null ? new Position { Qty = qtyHeld, AvgCost = 0m } : BuildPosition(tradesForPair);
-
-                // If positions differ slightly from balance (deposits/airdrops), trust the balance
-                var avgCost = pos.Qty > 0 ? pos.AvgCost : pos.AvgCost; // pos.AvgCost is our best available cost basis
-                var marketValue = qtyHeld * lastPrice;
-                var unrealized = (avgCost > 0 ? (lastPrice - avgCost) * qtyHeld : 0m);
-
-                totalUsdValue += marketValue;
-                totalUnrealizedPnl += unrealized;
-
-                var _mKrakenPortfolio = new cKrakenPortfolio
+                foreach (var bal in krakenBalanceData!) // Dictionary<string, decimal> e.g. { "SPICE": 123.45m }
                 {
-                    kpAsset = asset,
-                    kpQtyHeld = qtyHeld,
-                    kpAvgCost = avgCost,
-                    kpLastPrice = lastPrice,
-                    kpMarketValue = marketValue,
-                    kpUnrealizedPnl = unrealized,
-                    kpRealizedPnl = pos.RealizedPnl,
-                    kpFeesPaid = pos.FeesPaid,
-                    kpRetrievedAt = DateTime.UtcNow
-                };
+                    var asset = bal.Key;
+                    var qtyHeld = bal.Value;
+                    if (qtyHeld <= 0) continue;
 
-                ret.Add(_mKrakenPortfolio);
-                
+
+                    var pair = asset + "USD"; // adjust if you prefer another quote
+
+                    // Build a lookup so we can quickly get trades for "SPICEUSD", "BABYUSD", etc.
+                    var tradesByPair = krakenTradesHistoryData?.Result?.Trades?
+                        .Values
+                        .Where(t => !string.IsNullOrEmpty(t.Pair))
+                        .GroupBy(t => t.Pair!)
+                        .ToDictionary(g => g.Key, g => g.AsEnumerable(), StringComparer.OrdinalIgnoreCase)
+                        ?? new Dictionary<string, IEnumerable<KrakenTrade>>(StringComparer.OrdinalIgnoreCase);
+
+                    // For quick last prices:
+                    var lastPriceByPair = krakenTickerData?.Result?
+                        .ToDictionary(
+                            kv => kv.Key,
+                            kv => decimal.TryParse(kv.Value.LastTrade?.FirstOrDefault(),
+                                                   NumberStyles.Any, CultureInfo.InvariantCulture, out var d) ? d : 0m,
+                            StringComparer.OrdinalIgnoreCase
+                        ) ?? new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
+
+
+                    if (!lastPriceByPair.TryGetValue(pair, out var lastPrice) || lastPrice <= 0)
+                        continue;
+
+                    tradesByPair.TryGetValue(pair, out var tradesForPair);
+                    var pos = tradesForPair is null ? new Position { Qty = qtyHeld, AvgCost = 0m } : BuildPosition(tradesForPair);
+
+                    // If positions differ slightly from balance (deposits/airdrops), trust the balance
+                    var avgCost = pos.Qty > 0 ? pos.AvgCost : pos.AvgCost; // pos.AvgCost is our best available cost basis
+                    var marketValue = qtyHeld * lastPrice;
+                    var unrealized = (avgCost > 0 ? (lastPrice - avgCost) * qtyHeld : 0m);
+
+                    totalUsdValue += marketValue;
+                    totalUnrealizedPnl += unrealized;
+
+                    var _mKrakenPortfolio = new cKrakenPortfolio
+                    {
+                        kpAsset = asset,
+                        kpQtyHeld = qtyHeld,
+                        kpAvgCost = avgCost,
+                        kpLastPrice = lastPrice,
+                        kpMarketValue = marketValue,
+                        kpUnrealizedPnl = unrealized,
+                        kpRealizedPnl = pos.RealizedPnl,
+                        kpFeesPaid = pos.FeesPaid,
+                        kpRetrievedAt = DateTime.UtcNow
+                    };
+
+                    ret.apiData.Add(_mKrakenPortfolio);
+
+                }
+
+                var value_total = $"\nTotal Value  ≈ {totalUsdValue:N2} USD";
+                var value_unrealised = $"Unrealized P/L ≈ {totalUnrealizedPnl:N2} USD";
             }
-
-            var value_total = $"\nTotal Value  ≈ {totalUsdValue:N2} USD";
-            var value_unrealised = $"Unrealized P/L ≈ {totalUnrealizedPnl:N2} USD";
-
+            catch (Exception ex)
+            {
+                ret.apiSuccess = false;
+                ret.apiMessage = ex.Message;
+            }
             return ret;
         }
 
