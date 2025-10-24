@@ -9,6 +9,7 @@
     mApp _m_App = @Model;
     }
 
+<form id="id_page">
 <div class="container text-center">
   <div class="row g-2 align-items-center">
   <div class="col text-start">
@@ -20,17 +21,20 @@
 
 <div class="row g-2 align-items-center">
   <!-- other cols -->
-  <div class="col-3">
+  <div class="col-2">
     <input id="ip_threshold" type="number" step="0.1" value="-13.0"
            class="form-control w-100" />
   </div>
   <!-- other cols -->
+            <div class="col-auto">
+                <button id="enableSound" class="btn btn-sm btn-primary">Enable sound</button>
+            </div>
+            <div class="col-2">
+                <input id="ip_code" type="text" value="" placeholder="Enter code"
+                       class="form-control w-100" />
+            </div>
 </div>
 
-
-  <div class="col-auto">
-    <button id="enableSound" class="btn btn-sm btn-primary">Enable sound</button>
-  </div>
 </div>
 
 </div>
@@ -95,6 +99,9 @@
         </div>
     </div>
 </div>
+
+</form>
+
 <audio id="alertSound2" preload="auto">
   <source src="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABYAZGF0YQAAAAAA" type="audio/wav">
 </audio>
@@ -106,8 +113,16 @@
         doInit();
         pollDataRead(); // Start polling
         
+
+        doLocalLoad("id_page","#id_page");
+        
+        window.onbeforeunload = function () {
+            doLocalSave('id_page','#id_page');
+            return null;
+        }
+
         console.log("Home/Index.cshtml loaded");
-        });
+    });
 
     function pollDataRead() {
         doDataRead();

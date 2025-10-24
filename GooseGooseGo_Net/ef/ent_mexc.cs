@@ -122,7 +122,7 @@ namespace GooseGooseGo_Net.ef
 
 
 
-        public async Task<ApiResponse<List<cMexcOrderLotSummaryGroup<string,cMexcOrderLotSummary>>>?> doMexcReturnPortfolio(dbContext _dbCon)
+        public async Task<ApiResponse<List<cMexcOrderLotSummaryGroup<string,cMexcOrderLotSummary>>>?> doMexcReturnPortfolio(dbContext _dbCon, CancellationToken ct)
         {
             var ret = new ApiResponse<List<cMexcOrderLotSummaryGroup<string, cMexcOrderLotSummary>>>();
             ret.apiData = new List<cMexcOrderLotSummaryGroup<string, cMexcOrderLotSummary>>();
@@ -158,7 +158,7 @@ namespace GooseGooseGo_Net.ef
                     .ToList();
 
                 // 4) get all prices (batch)
-                var allPrices = await doApi_TickerPrice_AllAsync(_dbCon); // calls /api/v3/ticker/price (no auth)
+                var allPrices = await doApi_TickerPrice_AllAsync(_dbCon, ct); // calls /api/v3/ticker/price (no auth)
                 var priceMap = allPrices?
                     .GroupBy(tp => tp.symbol, StringComparer.OrdinalIgnoreCase)
                     .ToDictionary(g => g.Key, g => ParseDec(g.First().price), StringComparer.OrdinalIgnoreCase)
@@ -189,7 +189,7 @@ namespace GooseGooseGo_Net.ef
 
                     decimal lastPrice = priceMap[symbol];
 
-                    cMexcOrderLotSummaryGroup<string,cMexcOrderLotSummary> trades = await doApi_TradesByOrderAsync(_dbCon, symbol);
+                    cMexcOrderLotSummaryGroup<string,cMexcOrderLotSummary> trades = await doApi_TradesByOrderAsync(_dbCon, symbol, ct);
                     ret.apiData.Add(trades);
                 }
                 ret.apiSuccess = true;
@@ -202,118 +202,6 @@ namespace GooseGooseGo_Net.ef
                 return ret;
             }
         }
-
-        public async Task<ApiResponse<List<cMexcPortfolio>>?> doMexcReturnPortfolio2(dbContext _dbCon)
-        {
-            bool method_new = true; // switch between trade-fetching methods
-
-            var ret = new ApiResponse<List<cMexcPortfolio>>();
-            try
-            {
-                // 1) balances
-                var acct = await doApi_AccountsAsync(_dbCon);
-                if (acct?.balances is null)
-                {
-                    ret.apiSuccess = true;
-                    ret.apiData = new List<cMexcPortfolio>();
-                    return ret;
-                }
-
-                // 2) collect assets with non-zero total
-                var assets = acct.balances
-                    .Select(b =>
-                    {
-                        decimal free = ParseDec(b.free);
-                        decimal locked = ParseDec(b.locked) + ParseDec(b.available); // MEXC sometimes provides both
-                        return new { asset = b.asset?.Trim() ?? "", qty = free + locked };
-                    })
-                    .Where(x => x.asset.Length > 0 && x.qty > 0m)
-                    .ToList();
-
-                // 3) build preferred symbols (USDT first, then USDC, then USD)
-                static IEnumerable<string> CandidateSymbols(string asset) =>
-                    new[] { $"{asset}USDT", $"{asset}USDC", $"{asset}USD" };
-
-                var wantedSymbols = assets
-                    .SelectMany(a => CandidateSymbols(a.asset))
-                    .Distinct(StringComparer.OrdinalIgnoreCase)
-                    .ToList();
-
-                // 4) get all prices (batch)
-                var allPrices = await doApi_TickerPrice_AllAsync(_dbCon); // calls /api/v3/ticker/price (no auth)
-                var priceMap = allPrices?
-                    .GroupBy(tp => tp.symbol, StringComparer.OrdinalIgnoreCase)
-                    .ToDictionary(g => g.Key, g => ParseDec(g.First().price), StringComparer.OrdinalIgnoreCase)
-                    ?? new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
-
-                // 5) per-asset pick first existing symbol and compute PnL using trade history
-                var portfolios = new List<cMexcPortfolio>();
-                foreach (var a in assets)
-                {
-                    string? symbol = CandidateSymbols(a.asset).FirstOrDefault(s => priceMap.ContainsKey(s));
-                    if (symbol is null)
-                    {
-                        // no price found; skip or include with zeros
-                        portfolios.Add(new cMexcPortfolio
-                        {
-                            mpAsset = a.asset,
-                            mpQtyHeld = a.qty,
-                            mpAvgCost = 0,
-                            mpLastPrice = 0,
-                            mpMarketValue = 0,
-                            mpUnrealizedPnl = 0,
-                            mpRealizedPnl = 0,
-                            mpFeesPaid = 0,
-                            mpRetrievedAt = DateTime.UtcNow
-                        });
-                        continue;
-                    }
-
-                    decimal lastPrice = priceMap[symbol];
-
-
-                    // 6) trades for the symbol (paginate if needed)
-                    var trades = await doApi_MyTradesAsync(_dbCon, symbol, limit: 1000);
-
-                    // 7) compute moving-average avgCost, realized pnl, fees in QUOTE
-                    ComputePnL_MovingAverage(
-                        trades,
-                        out decimal avgCost,
-                        out decimal realizedPnl,
-                        out decimal feesQuote);
-
-                    // 8) unrealized on current inventory
-                    decimal qty = a.qty;
-                    decimal unrealized = (qty > 0 && avgCost > 0) ? (lastPrice - avgCost) * qty : 0m;
-                    decimal mv = qty * lastPrice;
-
-                    portfolios.Add(new cMexcPortfolio
-                    {
-                        mpAsset = a.asset,
-                        mpQtyHeld = qty,
-                        mpAvgCost = avgCost,
-                        mpLastPrice = lastPrice,
-                        mpMarketValue = mv,
-                        mpUnrealizedPnl = unrealized,
-                        mpRealizedPnl = realizedPnl,
-                        mpFeesPaid = feesQuote,
-                        mpRetrievedAt = DateTime.UtcNow
-                    });
-                }
-
-                ret.apiSuccess = true;
-                ret.apiData = portfolios;
-
-                return ret;
-            }
-            catch (Exception ex)
-            {
-                ret.apiSuccess = false;
-                ret.apiMessage = ex.Message;
-                return ret;
-            }
-        }
-
 
         public async Task<cMexcAccounts?> doApi_Accounts2Async(dbContext _dbCon)
         {
@@ -360,7 +248,7 @@ namespace GooseGooseGo_Net.ef
         }
 
         // all prices (public)
-        public async Task<List<MexcTickerPrice>?> doApi_TickerPrice_AllAsync(dbContext _dbCon)
+        public async Task<List<MexcTickerPrice>?> doApi_TickerPrice_AllAsync(dbContext _dbCon, CancellationToken ct)
         {
             List<MexcTickerPrice>? ret = null;
             var p = new cApiParms { apMethod = "GET", apPath = "/api/v3/ticker/price", apDoSign = false };
@@ -370,7 +258,7 @@ namespace GooseGooseGo_Net.ef
             return ret;
         }
 
-        public async Task<cMexcOrderLotSummaryGroup<string, cMexcOrderLotSummary>> doApi_TradesByOrderAsync(dbContext _dbCon, string symbol)
+        public async Task<cMexcOrderLotSummaryGroup<string, cMexcOrderLotSummary>> doApi_TradesByOrderAsync(dbContext _dbCon, string symbol, CancellationToken ct)
         {
             cMexcOrderLotSummaryGroup<string, cMexcOrderLotSummary>? ret = null;
 
@@ -380,7 +268,7 @@ namespace GooseGooseGo_Net.ef
             trades = trades.OrderBy(t => t.time).ToList();
 
             // 2) current price once
-            var last = await GetLastPriceAsync(_dbCon, symbol);
+            var last = await GetLastPriceAsync(_dbCon, symbol, ct);
 
             // 3) group all trades by orderId
             var byOrder = trades.GroupBy(t => t.orderId).ToList();
@@ -499,9 +387,9 @@ namespace GooseGooseGo_Net.ef
             // Fees in MX or something else: omit or convert via its price if you wish.
             return 0;
         }
-        private async Task<decimal> GetLastPriceAsync(dbContext _dbCon, string symbol)
+        private async Task<decimal> GetLastPriceAsync(dbContext _dbCon, string symbol, CancellationToken ct)
         {
-            var all = await doApi_TickerPrice_AllAsync(_dbCon);
+            var all = await doApi_TickerPrice_AllAsync(_dbCon, ct);
             var m = all.FirstOrDefault(x => x.symbol.Equals(symbol, StringComparison.OrdinalIgnoreCase));
             return ParseDec(m?.price);
         }

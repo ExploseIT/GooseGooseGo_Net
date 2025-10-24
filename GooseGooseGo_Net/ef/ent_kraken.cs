@@ -104,17 +104,22 @@ namespace GooseGooseGo_Net.ef
             return ret;
         }
 
-        public async Task<ApiResponse<List<cKrakenPortfolio>>?> doKrakenReturnPortfolio(dbContext _dbCon)
+        public async Task<ApiResponse<List<cKrakenPortfolio>>?> doKrakenReturnPortfolio(dbContext _dbCon, CancellationToken ct=default)
         {
             ApiResponse<List<cKrakenPortfolio>> ret = new ApiResponse<List<cKrakenPortfolio>>();
             try
             {
                 //var _e_kraken = new ent_kraken(_conf, _logger, _httpClientFactory, _dbCon);
                 // Get Kraken Portfolio Data
-                KrakenEnvelope<KrakenTradesHistoryResult>? krakenTradesHistoryData = await doApi_TradesHistoryAsync(_dbCon);
-                Dictionary<string, decimal>? krakenBalanceData = await doApi_AssetBalanceAsync(_dbCon);
+                KrakenEnvelope<KrakenTradesHistoryResult>? krakenTradesHistoryData = await doApi_TradesHistoryAsync(_dbCon, ct);
+                var kbdResp = await doApi_AssetBalanceAsync(_dbCon, ct);
+                if (!kbdResp!.apiSuccess)
+                {
+                    throw new InvalidOperationException($"Kraken doApi_AssetBalanceAsync call failed: {kbdResp.apiMessage}");
+                }
+                Dictionary<string, decimal>? krakenBalanceData = kbdResp.apiData;
                 var _krakenTickerParms = doGetTickerPairsFromBalance(krakenBalanceData);
-                KrakenEnvelope<Dictionary<string, KrakenTickerEntry>>? krakenTickerData = await doApi_TickerAsync(_dbCon, _krakenTickerParms);
+                KrakenEnvelope<Dictionary<string, KrakenTickerEntry>>? krakenTickerData = await doApi_TickerAsync(_dbCon, _krakenTickerParms, ct);
                 var _apiResp = doGetPortfolio(_dbCon, krakenTradesHistoryData, krakenBalanceData, krakenTickerData);
                 if(!_apiResp.apiSuccess)
                 {
@@ -289,9 +294,11 @@ public static Position BuildPosition(IEnumerable<KrakenTrade> trades)
             return ret;
         }
 
-        public async Task<Dictionary<string, decimal>?> doApi_AssetBalanceAsync(dbContext _dbCon)
+        public async Task<ApiResponse<Dictionary<string, decimal>>?> doApi_AssetBalanceAsync(dbContext _dbCon, CancellationToken ct = default)
         {
-            Dictionary<string, decimal>? ret = null;
+            ApiResponse<Dictionary<string, decimal>> ret = new ApiResponse<Dictionary<string, decimal>>();
+            ret.apiData = new Dictionary<string, decimal>();
+
             ApiResponse<string>? ret_ApiBase = null;
             string retJson = "";
             cApiParms p = new cApiParms
@@ -318,7 +325,7 @@ public static Position BuildPosition(IEnumerable<KrakenTrade> trades)
 
                     var ci = CultureInfo.InvariantCulture;
 
-                    ret = (env.Result ?? new Dictionary<string, string>())
+                    ret.apiData = (env.Result ?? new Dictionary<string, string>())
                         .Select(kv => new
                         {
                             Asset = kv.Key,
@@ -333,13 +340,15 @@ public static Position BuildPosition(IEnumerable<KrakenTrade> trades)
             catch (Exception ex)
             {
                 exc = ex;
+                ret.apiSuccess = false;
+                ret.apiMessage = ex.Message;
             }
             return ret;
         }
 
 
 
-        public async Task<KrakenEnvelope<KrakenTradesHistoryResult>?> doApi_TradesHistoryAsync(dbContext _dbCon)
+        public async Task<KrakenEnvelope<KrakenTradesHistoryResult>?> doApi_TradesHistoryAsync(dbContext _dbCon, CancellationToken ct=default)
         {
             cApiParms p = new cApiParms
             {
@@ -367,7 +376,7 @@ public static Position BuildPosition(IEnumerable<KrakenTrade> trades)
             return ret;
         }
 
-        public async Task<KrakenEnvelope<Dictionary<string, KrakenTickerEntry>>?> doApi_TickerAsync(dbContext _dbCon, KrakenTickerParams parms)
+        public async Task<KrakenEnvelope<Dictionary<string, KrakenTickerEntry>>?> doApi_TickerAsync(dbContext _dbCon, KrakenTickerParams parms, CancellationToken ct)
         {
             Exception? exc = null;
             KrakenEnvelope<Dictionary<string, KrakenTickerEntry>>? ret = null;
@@ -397,7 +406,7 @@ public static Position BuildPosition(IEnumerable<KrakenTrade> trades)
             return ret;
         }
 
-        public async Task<ApiResponse<string>> doApi_Base<T>(cApiParms p, dbContext _dbCon, T? parms = default)
+        public async Task<ApiResponse<string>> doApi_Base<T>(cApiParms p, dbContext _dbCon, T? parms = default, CancellationToken ct = default)
     where T : class
         {
             ApiResponse<string> ret = new ApiResponse<string>();

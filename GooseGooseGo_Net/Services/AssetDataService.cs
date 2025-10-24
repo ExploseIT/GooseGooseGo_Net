@@ -79,7 +79,8 @@ namespace GooseGooseGo_Net.Services
                         foreach (var assd in mexcData!)
                         {
                             decimal c_dec = 0.0M;
-                            if (assd.symbol.EndsWith("USDT", StringComparison.OrdinalIgnoreCase))
+                            if (assd.symbol.EndsWith("USDT", StringComparison.OrdinalIgnoreCase) ||
+                                assd.symbol.EndsWith("USDC", StringComparison.OrdinalIgnoreCase))
                             {
                                 var asset = new cAsset
                                 {

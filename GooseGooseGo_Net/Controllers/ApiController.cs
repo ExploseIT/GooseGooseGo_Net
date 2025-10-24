@@ -41,11 +41,11 @@ namespace GooseGooseGo_Net.Controllers
         }
 
         [HttpPost("doKrakenReturnPortfolio")]
-        public async Task<ActionResult<ApiResponse<List<cKrakenPortfolio>>>> DoKrakenReturnPortfolio()
+        public async Task<ActionResult<ApiResponse<List<cKrakenPortfolio>>>> DoKrakenReturnPortfolio(CancellationToken ct)
         {
             var svc = new ent_kraken(_conf, _logger, _httpClientFactory, _dbCon);
 
-            var ret = await svc.doKrakenReturnPortfolio(_dbCon);
+            var ret = await svc.doKrakenReturnPortfolio(_dbCon, ct);
 
             if (ret is null)
                 return StatusCode(502, "Upstream returned null.");
@@ -54,11 +54,11 @@ namespace GooseGooseGo_Net.Controllers
         }
 
         [HttpPost("doMexcReturnPortfolio")]
-        public async Task<ActionResult<ApiResponse<List<cMexcOrderLotSummaryGroup<string, cMexcOrderLotSummary>>>>> DoMexcReturnPortfolio()
+        public async Task<ActionResult<ApiResponse<List<cMexcOrderLotSummaryGroup<string, cMexcOrderLotSummary>>>>> DoMexcReturnPortfolio(CancellationToken ct)
         {
             var svc = new ent_mexc(_conf, _logger, _httpClientFactory, _dbCon);
 
-            var ret = await svc.doMexcReturnPortfolio(_dbCon);
+            var ret = await svc.doMexcReturnPortfolio(_dbCon, ct);
 
             if (ret is null)
                 return StatusCode(502, "Upstream returned null.");
