@@ -105,20 +105,6 @@ namespace GooseGooseGo_Net.ef
             return ret;
         }
 
-        public async Task<ApiResponse<cMexcAccounts?>> doMexcReturnPortfolioSimple(dbContext _dbCon)
-        {
-            ApiResponse<cMexcAccounts?> ret = new ApiResponse<cMexcAccounts?>();
-            try
-            {
-                ret.apiData = await doApi_AccountsAsync(_dbCon);
-            }
-            catch (Exception ex)
-            {
-                ret.apiSuccess = false;
-                ret.apiMessage = ex.Message;
-            }
-            return ret;
-        }
 
 
 
@@ -137,16 +123,7 @@ namespace GooseGooseGo_Net.ef
                     return ret;
                 }
 
-                // 2) collect assets with non-zero total
-                var assets = acct.balances
-                    .Select(b =>
-                    {
-                        decimal free = ParseDec(b.free);
-                        decimal locked = ParseDec(b.locked) + ParseDec(b.available); // MEXC sometimes provides both
-                        return new { asset = b.asset?.Trim() ?? "", qty = free + locked };
-                    })
-                    .Where(x => x.asset.Length > 0 && x.qty > 0m)
-                    .ToList();
+                List<cMexcAccountEntry>? assets = acct.balances;
 
                 // 3) build preferred symbols (USDT first, then USDC, then USD)
                 static IEnumerable<string> CandidateSymbols(string asset) =>
@@ -166,30 +143,48 @@ namespace GooseGooseGo_Net.ef
 
                 // 5) per-asset pick first existing symbol and compute PnL using trade history
                 var portfolios = new List<cMexcPortfolio>();
+                var stableSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                    { "USDT", "USDC", "USD" };
+
                 foreach (var a in assets)
                 {
+                    cMexcOrderLotSummaryGroup<string, cMexcOrderLotSummary> trades = new cMexcOrderLotSummaryGroup<string, cMexcOrderLotSummary>();
                     string? symbol = CandidateSymbols(a.asset).FirstOrDefault(s => priceMap.ContainsKey(s));
-                    if (symbol is null)
+
+                    if ((String.Compare(a.asset, "USDT", true) == 0) || (String.Compare(a.asset, "USDC", true) == 0))
                     {
-                        // no price found; skip or include with zeros
-                        portfolios.Add(new cMexcPortfolio
+                        var qty = a.getQuantity();
+
+                        trades = new cMexcOrderLotSummaryGroup<string, cMexcOrderLotSummary>
                         {
-                            mpAsset = a.asset,
-                            mpQtyHeld = a.qty,
-                            mpAvgCost = 0,
-                            mpLastPrice = 0,
-                            mpMarketValue = 0,
-                            mpUnrealizedPnl = 0,
-                            mpRealizedPnl = 0,
-                            mpFeesPaid = 0,
-                            mpRetrievedAt = DateTime.UtcNow
-                        });
-                        continue;
+                                Key = a.asset,
+                                Items = new List<cMexcOrderLotSummary>
+                            {
+                                new cMexcOrderLotSummary
+                                {
+                                    mpolsSymbol = a.asset,
+                                    mpolsOrderId = "stablecoin",
+                                    mpolsFilledAt = DateTime.Now,
+                                    mpolsBuyQty = qty,           // total qty filled on that orderId (buys only)
+                                    mpolsBuyCostQuote = 0.0m,     // Σ(price*qty + buy-fees-in-quote)
+                                    mpolsBuyAvgCost = 1.0m,        // BuyCostQuote / BuyQty
+                                    mpolsBuyFeesQuote = 0.0m,      // fees charged on the buy fills
+                                    mpolsRemainingQty = 0.0m,      // after subsequent sells
+                                    mpolsRealizedPnlFromThisLot = 0.0m, // realized due to sells after this order
+                                    mpolsCurrentPrice = 1.0m,
+                                    mpolsMarketValue = qty,
+                                    mpolsUnrealizedPnl = 0.0m
+                                }
+                            }
+                        };
+                    }
+                    else if (symbol is not null)
+                    {
+                        decimal lastPrice = priceMap[symbol];
+                        //cMexcOrderLotSummaryGroup<string,cMexcOrderLotSummary> trades = await doApi_TradesByOrderAsync(_dbCon, symbol, false, ct);
+                        trades = await doApi_LatestBuyLotAsync(_dbCon, symbol, ct);
                     }
 
-                    decimal lastPrice = priceMap[symbol];
-
-                    cMexcOrderLotSummaryGroup<string,cMexcOrderLotSummary> trades = await doApi_TradesByOrderAsync(_dbCon, symbol, ct);
                     ret.apiData.Add(trades);
                 }
                 ret.apiSuccess = true;
@@ -203,19 +198,126 @@ namespace GooseGooseGo_Net.ef
             }
         }
 
-        public async Task<cMexcAccounts?> doApi_Accounts2Async(dbContext _dbCon)
+        public async Task<cMexcOrderLotSummaryGroup<string, cMexcOrderLotSummary>> doApi_LatestBuyLotAsync(dbContext _dbCon, string symbolOrBase, CancellationToken ct = default)
         {
-            cApiParms p = new cApiParms
+            // --- 0) Resolve which symbol actually has the latest BUY (ETHUSDC vs ETHUSDT, etc.)
+            string baseAsset = ExtractBase(symbolOrBase); // e.g., "ETH" from "ETHUSDT", or "ETH" if already base
+            var candidates = new[] { baseAsset + "USDC", baseAsset + "USDT", baseAsset + "USD" };
+
+            List<MexcMyTrade> bestTrades = new();
+            string bestSymbol = candidates[0];
+            long bestBuyTime = -1;
+
+            foreach (var sym in candidates)
             {
-                apMethod = "GET",
-                apPath = "/api/v3/account",
+                var t = await doApi_MyTradesAsync(_dbCon, sym, limit: 100);     // asc/desc unk, so sort next
+                if (t == null || t.Count == 0) continue;
+
+                var latestBuy = t.Where(x => x.isBuyer).OrderByDescending(x => x.time).FirstOrDefault();
+                if (latestBuy != null && latestBuy.time > bestBuyTime)
+                {
+                    bestBuyTime = latestBuy.time;
+                    bestSymbol = sym;
+                    bestTrades = t;
+                }
+            }
+
+            if (bestBuyTime < 0)
+                return new cMexcOrderLotSummaryGroup<string, cMexcOrderLotSummary> { Key = baseAsset, Items = new() };
+
+            // --- 1) Work only with the chosen symbol & latest BUY order
+            var trades = bestTrades.OrderBy(x => x.time).ToList();
+            var latestBuyTrade = trades.Where(x => x.isBuyer).OrderByDescending(x => x.time).First();
+            var targetOrderId = latestBuyTrade.orderId;
+
+            var grp = trades.Where(x => x.orderId == targetOrderId).OrderBy(x => x.time).ToList();
+            var buys = grp.Where(x => x.isBuyer).ToList();
+            if (!buys.Any())
+                return new cMexcOrderLotSummaryGroup<string, cMexcOrderLotSummary> { Key = bestSymbol, Items = new() };
+
+            // --- 2) Buy lot totals (quote currency of bestSymbol)
+            decimal buyQty = 0m, buyCostQ = 0m, buyFeesQ = 0m;
+            long filledTime = buys.Last().time;
+
+            foreach (var t in buys)
+            {
+                var px = ParseDec(t.price);
+                var qty = ParseDec(t.qty);
+                var fee = FeeToQuote(t, px); // ensure this returns fee in QUOTE (e.g., USDC for ETHUSDC)
+                buyQty += qty;
+                buyCostQ += px * qty + fee;
+                buyFeesQ += fee;
+            }
+            if (buyQty <= 0m)
+                return new cMexcOrderLotSummaryGroup<string, cMexcOrderLotSummary> { Key = bestSymbol, Items = new() };
+
+            var buyAvg = buyCostQ / buyQty;
+
+            // --- 3) Realized PnL: only sells AFTER this lot filled, STOP at next BUY (belongs to next position)
+            decimal remaining = buyQty;
+            decimal realized = 0m;
+
+            foreach (var t in trades) // already asc
+            {
+                if (t.time <= filledTime) continue;
+
+                if (t.isBuyer) break; // next position starts — we stop attributing sells
+
+                if (remaining <= 0m) break;
+
+                var sellPx = ParseDec(t.price);
+                var sellQty = ParseDec(t.qty);
+                var feeQ = FeeToQuote(t, sellPx); // fee in quote
+
+                var use = Math.Min(remaining, sellQty);
+                if (use <= 0) continue;
+
+                realized += (sellPx - buyAvg) * use - feeQ * (use / sellQty);
+                remaining -= use;
+            }
+
+            // --- 4) Mark-to-market using the same symbol (right quote)
+            var last = await GetLastPriceAsync(_dbCon, bestSymbol, ct);
+            var mv = remaining * last;
+            var unrl = (last - buyAvg) * remaining;
+
+            var lot = new cMexcOrderLotSummary
+            {
+                mpolsSymbol = bestSymbol,
+                mpolsOrderId = targetOrderId,
+                mpolsFilledAt = DateTimeOffset.FromUnixTimeMilliseconds(filledTime).UtcDateTime,
+
+                mpolsBuyQty = buyQty,
+                mpolsBuyCostQuote = buyCostQ,
+                mpolsBuyAvgCost = buyAvg,
+                mpolsBuyFeesQuote = buyFeesQ,
+                mpolsRemainingQty = remaining,
+                mpolsRealizedPnlFromThisLot = realized,
+                mpolsCurrentPrice = last,
+                mpolsMarketValue = mv,
+                mpolsUnrealizedPnl = unrl
             };
-            string retJson = await doApi_Base(_dbCon, p);
 
-            var ret = JsonSerializer.Deserialize<cMexcAccounts>(retJson);
-
-            return ret;
+            return new cMexcOrderLotSummaryGroup<string, cMexcOrderLotSummary>
+            {
+                Key = bestSymbol,
+                Items = new List<cMexcOrderLotSummary> { lot }
+            };
         }
+
+        // --- helpers ---
+
+        private static string ExtractBase(string symbolOrBase)
+        {
+            var s = (symbolOrBase ?? "").Trim().ToUpperInvariant();
+            if (s.EndsWith("USDT")) return s[..^4];
+            if (s.EndsWith("USDC")) return s[..^4];
+            if (s.EndsWith("USD")) return s[..^3];
+            if (s.EndsWith("BTC")) return s[..^3];
+            if (s.EndsWith("ETH")) return s[..^3];
+            return s; // already base, e.g., "ETH"
+        }
+
 
         public async Task<List<MexcTickerEntry>?> doApi_TickerListAsync(dbContext _dbCon)
         {
@@ -258,103 +360,10 @@ namespace GooseGooseGo_Net.ef
             return ret;
         }
 
-        public async Task<cMexcOrderLotSummaryGroup<string, cMexcOrderLotSummary>> doApi_TradesByOrderAsync(dbContext _dbCon, string symbol, CancellationToken ct)
-        {
-            cMexcOrderLotSummaryGroup<string, cMexcOrderLotSummary>? ret = null;
 
-            // 1) full trade list for symbol (paginate if needed; limit 100 per page on MEXC)
-            var trades = await doApi_MyTradesAsync(_dbCon, symbol, limit: 100);
-            // TODO: loop with fromId to pull more pages if you need history
-            trades = trades.OrderBy(t => t.time).ToList();
-
-            // 2) current price once
-            var last = await GetLastPriceAsync(_dbCon, symbol, ct);
-
-            // 3) group all trades by orderId
-            var byOrder = trades.GroupBy(t => t.orderId).ToList();
-
-            var lots = new List<cMexcOrderLotSummary>();
-
-            foreach (var grp in byOrder)
-            {
-                // We only create a "lot" for BUY orders
-                var buys = grp.Where(t => t.isBuyer).OrderBy(t => t.time).ToList();
-                if (!buys.Any())
-                    continue;
-
-                // (a) compute the buy lot totals for this orderId
-                decimal buyQty = 0m, buyCostQ = 0m, buyFeesQ = 0m;
-                long filledTime = buys.Last().time; // use last fill as "lot filled" time
-
-                foreach (var t in buys)
-                {
-                    var price = ParseDec(t.price);
-                    var qty = ParseDec(t.qty);
-                    var feeQ = FeeToQuote(t, price);
-                    buyQty += qty;
-                    buyCostQ += price * qty + feeQ;
-                    buyFeesQ += feeQ;
-                }
-                if (buyQty <= 0) continue;
-
-                var buyAvg = buyCostQ / buyQty;
-
-                // (b) consume later sells to compute remaining qty and realized PnL for THIS lot
-                decimal remaining = buyQty;
-                decimal realized = 0m;
-
-                foreach (var s in trades) // all trades after the lot’s fills
-                {
-                    if (s.time <= filledTime) continue;
-                    if (remaining <= 0) break;
-                    if (s.isBuyer) continue;
-
-                    var sellPrice = ParseDec(s.price);
-                    var sellQty = ParseDec(s.qty);
-                    var feeQ = FeeToQuote(s, sellPrice);
-
-                    var use = Math.Min(remaining, sellQty);
-                    if (use <= 0) continue;
-
-                    // attribute a proportional part of the sell fee to the consumed qty
-                    realized += (sellPrice - buyAvg) * use - feeQ * (use / sellQty);
-                    remaining -= use;
-                }
-
-                // (c) live mark-to-market
-                var mv = remaining * last;
-                var unrl = (last - buyAvg) * remaining;
-
-                lots.Add(new cMexcOrderLotSummary
-                {
-                    mpolsSymbol = symbol,
-                    mpolsOrderId = grp.Key,
-                    mpolsFilledAt = DateTimeOffset.FromUnixTimeMilliseconds(filledTime).UtcDateTime,
-
-                    mpolsBuyQty = buyQty,
-                    mpolsBuyCostQuote = buyCostQ,
-                    mpolsBuyAvgCost = buyAvg,
-                    mpolsBuyFeesQuote = buyFeesQ,
-                    mpolsRemainingQty = remaining,
-                    mpolsRealizedPnlFromThisLot = realized,
-                    mpolsCurrentPrice = last,
-                    mpolsMarketValue = mv,
-                    mpolsUnrealizedPnl = unrl
-                });
-            }
-
-            // Most recent first
-            ret = new cMexcOrderLotSummaryGroup<string, cMexcOrderLotSummary>
-            {
-                Key = symbol,
-                Items = lots.OrderByDescending(l => l.mpolsFilledAt).ToList()
-            };
-            //return lots.OrderByDescending(l => l.FilledAt).ToList();
-            return ret;
-        }
 
         // --- helpers (same as before) ---
-        private static decimal ParseDec(string? s) =>
+        public static decimal ParseDec(string? s) =>
             decimal.TryParse(s, System.Globalization.NumberStyles.Any,
                 System.Globalization.CultureInfo.InvariantCulture, out var d) ? d : 0m;
 
@@ -435,24 +444,6 @@ namespace GooseGooseGo_Net.ef
 
 
 
-        static long _srvOffsetMs = 0;
-        static long _lastSyncUnixMs = 0;
-        static readonly TimeSpan SyncTtl = TimeSpan.FromMinutes(5);
-
-        async Task EnsureTimeSyncAsync(HttpClient client)
-        {
-            var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-            if (now - _lastSyncUnixMs < (long)SyncTtl.TotalMilliseconds) return;
-
-            using var res = await client.GetAsync("https://api.mexc.com/api/v3/time");
-            res.EnsureSuccessStatusCode();
-            var json = await res.Content.ReadAsStringAsync();
-            var doc = System.Text.Json.JsonDocument.Parse(json);
-            var serverTime = doc.RootElement.GetProperty("serverTime").GetInt64();
-
-            _srvOffsetMs = serverTime - DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-            _lastSyncUnixMs = now;
-        }
 
         // Helper: URL-encode and join k=v with '&'
         private static string BuildQueryString(IEnumerable<KeyValuePair<string, string>> kvs)
@@ -787,6 +778,9 @@ namespace GooseGooseGo_Net.ef
         public decimal mpolsCurrentPrice { get; set; }
         public decimal mpolsMarketValue { get; set; }
         public decimal mpolsUnrealizedPnl { get; set; }
+
+
+
     }
 
 
@@ -857,6 +851,13 @@ namespace GooseGooseGo_Net.ef
         public string? free { get; set; } = null;
         public string? locked { get; set; } = null;
         public string? available { get; set; } = null;
+
+        public decimal getQuantity()
+        {
+            decimal ret = decimal.TryParse(free, out var dValue) ? dValue : 0m;
+
+            return ret;
+        }
     }
 
     public class cMexcAssetInfo
