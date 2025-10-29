@@ -278,6 +278,7 @@ namespace GooseGooseGo_Net.ef
         }
 
         [Key]
+        public int setId { get; set; } = 0;
         public string setName { get; set; } = String.Empty;
         public string setValue { get; set; } = String.Empty;
         public string setDescription { get; set; } = String.Empty;

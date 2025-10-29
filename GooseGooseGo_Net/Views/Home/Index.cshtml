@@ -285,6 +285,7 @@ function doDisplayMexcPortfolio() {
     }
 
     function doDisplayAssetListsUpDown() {
+            if (l_a_info === null || l_a_info.length === 0) return;
             $("#span_asset_item_count").text(l_a_info.length);
             let dt = l_a_info[0].assRetrievedAt;
             let dtStr = dt.replace('T', ' ');
@@ -385,25 +386,27 @@ function maybeAlert(symbol, pnl) {
         console.warn("Invalid threshold; using default -5.0");
         return; // or: const ip_threshold_number = -5.0;
       }
-
-      if (pnl >= ip_threshold_number) {
-    const now = Date.now();
-    const last = lastAlertAt.get(symbol) || 0;
-    if (now - last > ALERT_COOLDOWN_MS) {
-      lastAlertAt.set(symbol, now);
-      // play the sound
-      const el = document.getElementById('alertSound');
-      if (el && el.play) {
-          el.currentTime = 0;
-          el.play().catch(()=>{});
+         let symbLower = ("" + symbol).toLowerCase();
+         if (symbLower != "usdt" && symbLower != "usdc") {
+            if (pnl >= ip_threshold_number) {
+            const now = Date.now();
+            const last = lastAlertAt.get(symbol) || 0;
+            if (now - last > ALERT_COOLDOWN_MS) {
+              lastAlertAt.set(symbol, now);
+              // play the sound
+              const el = document.getElementById('alertSound');
+              if (el && el.play) {
+                  el.currentTime = 0;
+                  el.play().catch(()=>{});
+              }
+              else if (typeof playBeep === 'function') {
+                  try {
+                      playBeep();
+                  }
+                  catch {}
+              }
+            }
       }
-      else if (typeof playBeep === 'function') {
-          try {
-              playBeep();
-          }
-          catch {}
-      }
-    }
   }
 }
 

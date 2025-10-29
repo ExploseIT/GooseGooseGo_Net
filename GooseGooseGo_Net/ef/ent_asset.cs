@@ -22,8 +22,7 @@ namespace GooseGooseGo_Net.ef
         public ent_asset(
             IConfiguration conf,
             ILogger<mApp> logger,
-            IHttpClientFactory httpClientFactory,
-            dbContext _dbCon
+            IHttpClientFactory httpClientFactory
             )
         {
             _conf = conf;
@@ -142,36 +141,84 @@ namespace GooseGooseGo_Net.ef
             }
             return ret;
         }
+
+        public ApiResponse<cAssetProfit?> doAssetProfitRead(dbContext dbCon, cAssetProfit p)
+        {
+            var ret = new ApiResponse<cAssetProfit?>();
+            try
+            {
+                SqlParameter[] lParams = {
+                    new SqlParameter("@assprAsset", SqlDbType.NVarChar) { Value = p.assprAsset },
+                    new SqlParameter("@assprExchangeId", SqlDbType.NVarChar) { Value = p.assprExchangeId },
+                    new SqlParameter("@assprOrderId", SqlDbType.NVarChar) { Value = p.assprOrderId }
+                };
+                string sp = "spAssetProfitRead @assprAsset, @assprExchangeId, @assprOrderId";
+                var retSP = dbCon.lAssetProfit.FromSqlRaw(sp, lParams).AsEnumerable();
+                ret.apiData = retSP?.FirstOrDefault<cAssetProfit>();
+                ret.apiSuccess = true;
+            }
+            catch (Exception ex)
+            {
+                ret.apiSuccess = false;
+                ret.apiMessage = ex.Message + (ex.InnerException != null ? " : " + ex.InnerException.Message : "");
+                _logger.LogError(ex, "Error in doAssetProfitRead(");
+            }
+            return ret;
+        }
+        public ApiResponse<cAssetProfit?> doAssetProfitUpdate(dbContext dbCon, cAssetProfit p)
+        {
+            var ret = new ApiResponse<cAssetProfit?>();
+            try
+            {
+                SqlParameter[] lParams = {
+                    new SqlParameter("@assprAsset", SqlDbType.NVarChar) { Value = p.assprAsset },
+                    new SqlParameter("@assprExchangeId", SqlDbType.NVarChar) { Value = p.assprExchangeId },
+                    new SqlParameter("@assprPrice", SqlDbType.Decimal) { Value = p.assprPrice },
+                    new SqlParameter("@assprOrderId", SqlDbType.NVarChar) { Value = p.assprOrderId }
+                };
+                string sp = "spAssetProfitUpdate @assprAsset, @assprExchangeId, @assprPrice, @assprOrderId";
+                var retSP = dbCon.lAssetProfit.FromSqlRaw(sp, lParams).AsEnumerable();
+                ret.apiData = retSP?.FirstOrDefault<cAssetProfit>();
+                ret.apiSuccess = true;
+            }
+            catch (Exception ex)
+            {
+                ret.apiSuccess = false;
+                ret.apiMessage = ex.Message + (ex.InnerException != null ? " : " + ex.InnerException.Message : "");
+                _logger.LogError(ex, "Error in doAssetProfitRead(");
+            }
+            return ret;
+        }
     }
 
     public class cAsset
+    {
+        [Key]
+        public Int64 assId { get; set; }
+        public int assIndex { get; set; }
+        public string assExchange { get; set; } = "";
+        public string assPair { get; set; } = "";
+        [Precision(18, 5)]
+        public decimal assLastTrade { get; set; }
+        [Precision(18, 5)]
+        public decimal? assOpen { get; set; }
+        [Precision(18, 5)]
+        public decimal? assBid { get; set; }
+        [Precision(18, 5)]
+        public decimal? assAsk { get; set; }
+        [Precision(18, 5)]
+        public decimal? assHigh24h { get; set; }
+        [Precision(18, 5)]
+        public decimal? assLow24h { get; set; }
+        [Precision(18, 5)]
+        public decimal? assVolume24h { get; set; }
+        public DateTime assRetrievedAt { get; set; }
+        public DateTime assRetrievedAtSanitised()
         {
-            [Key]
-            public Int64 assId { get; set; }
-            public int assIndex { get; set; }
-            public string assExchange { get; set; } = "";
-            public string assPair { get; set; } = "";
-            [Precision(18, 5)]
-            public decimal assLastTrade { get; set; }
-            [Precision(18, 5)]
-            public decimal? assOpen { get; set; }
-            [Precision(18, 5)]
-            public decimal? assBid { get; set; }
-            [Precision(18, 5)]
-            public decimal? assAsk { get; set; }
-            [Precision(18, 5)]
-            public decimal? assHigh24h { get; set; }
-            [Precision(18, 5)]
-            public decimal? assLow24h { get; set; }
-            [Precision(18, 5)]
-            public decimal? assVolume24h { get; set; }
-            public DateTime assRetrievedAt { get; set; }
-            public DateTime assRetrievedAtSanitised()
-            {
-                var dt = this.assRetrievedAt.ToLocalTime();
-                return new DateTime(dt.Year, dt.Month, dt.Day, dt.Hour, dt.Minute, dt.Second);
-            }
+            var dt = this.assRetrievedAt.ToLocalTime();
+            return new DateTime(dt.Year, dt.Month, dt.Day, dt.Hour, dt.Minute, dt.Second);
         }
+    }
 
     public class cApiParms
     {
@@ -246,4 +293,24 @@ namespace GooseGooseGo_Net.ef
         public string apidet_secret { get; set; } = "";
     }
 
+    public class cSignalInfoPost
+    {
+        public string? sip_symbol { get; set; } = "";
+        public string? sip_strategy { get; set; } = "";
+        public string? sip_action { get; set; } = "";
+        public string? sip_price { get; set; } = "";
+        public string? sip_whenStr { get; set; } = "";
+    }
+
+    public class cAssetProfit
+    {
+        [Key]
+        public int assprId { get; set; } = 0;
+        public string assprAsset { get; set; } = "";
+        public string assprExchangeId { get; set; } = "";
+        public string assprOrderId { get; set; } = "";
+        [Precision(18, 5)]
+        public decimal assprPrice { get; set; } = 0.0M;
+        public DateTime assprDT { get; set; } = DateTime.Now;
+    }
 }

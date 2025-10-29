@@ -34,6 +34,7 @@ namespace GooseGooseGo_Net.ef
         public DbSet<cAssetPercentageSwing> lAssetPercentageSwing { get; set; }
         public DbSet<cAssetInfo> lAssetInfoList { get; set; }
         public DbSet<cAssetAssetInfo> lAssetAssetInfoList { get; set; }
+        public DbSet<cAssetProfit> lAssetProfit { get; set; }
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
             if (!optionsBuilder.IsConfigured)

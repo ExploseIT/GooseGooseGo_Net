@@ -11,6 +11,14 @@ select top 200 * from tblAssetInfo order by asiDT desc
 */
 select * from tblSettings
 
+select * from tblAssetExchange
+
+exec spAssetProfitUpdate 'ETH', 'EXC_MEXC',3977.94,'OrderId'
+exec spAssetProfitRead 'ETH', 'EXC_MEXC','OrderId'
+exec spAssetProfitListByExchange 'EXC_MEXC'
+
+Execute spSettingsList 'MEXC_API'
+
 delete from tblAsset where assVolume24h = 0.0 or assHigh24h is null or assLastTrade = 0.0
 select * from tblAsset where assVolume24h = 0.0 or assHigh24h is null or assLastTrade = 0.0
 

@@ -30,14 +30,14 @@ namespace GooseGooseGo_Net.Services
                 // Store in DB using your DbContext
                 var _conf = scope.ServiceProvider.GetRequiredService<IConfiguration>();
                 var _dbCon = scope.ServiceProvider.GetRequiredService<dbContext>();
-
-                var e_asset = new ent_asset(_conf, _logger, _httpClientFactory, _dbCon);
+                List<KeyValuePair<string, string>>? qListIn = null;
+                var e_asset = new ent_asset(_conf, _logger, _httpClientFactory);
                 var e_kraken = new ent_kraken(_conf, _logger, _httpClientFactory,_dbCon);
                 var e_mexc = new ent_mexc(_conf, _logger, _httpClientFactory, _dbCon);
                 //var e_cryptocom = new ent_cryptocom(_conf, _logger, _httpClientFactory, _dbCon);
 
                 //var cryptocomData = await e_cryptocom.doApi_TickerListAsync(_dbCon);
-                var mexcData = await e_mexc.doApi_TickerListAsync(_dbCon!);
+                var mexcData = await e_mexc.doApi_TickerListAsync(_dbCon!, qListIn, stoppingToken);
 
                 var krakenData = await e_kraken.doApi_TickerListAsync(_dbCon);
                 

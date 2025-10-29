@@ -29,14 +29,14 @@ namespace GooseGooseGo_Net.Controllers
         [HttpPost("doAssetPercentageSwingList")]
         public ApiResponse<List<cAssetPercentageSwing>?> doAssetPercentageSwingList(cAssetPercentageSwingParms p)
         {
-            var ret = new ent_asset(_conf, _logger, _httpClientFactory, _dbCon).doAssetPercentageSwingList(_dbCon, p);
+            var ret = new ent_asset(_conf, _logger, _httpClientFactory).doAssetPercentageSwingList(_dbCon, p);
             return ret;
         }
 
         [HttpPost("doAssetInfoList")]
         public ApiResponse<List<cAssetInfo>?> doAssetInfoList()
         {
-            var ret = new ent_asset(_conf, _logger, _httpClientFactory, _dbCon).doAssetInfoList(_dbCon);
+            var ret = new ent_asset(_conf, _logger, _httpClientFactory).doAssetInfoList(_dbCon);
             return ret;
         }
 

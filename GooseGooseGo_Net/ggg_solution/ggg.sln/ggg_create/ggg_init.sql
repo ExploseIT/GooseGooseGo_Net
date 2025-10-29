@@ -31,9 +31,6 @@ CREATE TABLE [dbo].[tblSettings](
 GO
 
 
-
-
-
 if exists (select * from sys.procedures where name='spAssetWatchInit')
 drop procedure spAssetWatchInit
 go

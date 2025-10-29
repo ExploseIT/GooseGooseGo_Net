@@ -112,6 +112,7 @@ namespace GooseGooseGo_Net.ef
         {
             var ret = new ApiResponse<List<cMexcOrderLotSummaryGroup<string, cMexcOrderLotSummary>>>();
             ret.apiData = new List<cMexcOrderLotSummaryGroup<string, cMexcOrderLotSummary>>();
+            ent_asset _e_asset = new ent_asset(_conf, _logger, _httpClientFactory);
             try
             {
                 // 1) balances
@@ -181,8 +182,54 @@ namespace GooseGooseGo_Net.ef
                     else if (symbol is not null)
                     {
                         decimal lastPrice = priceMap[symbol];
-                        //cMexcOrderLotSummaryGroup<string,cMexcOrderLotSummary> trades = await doApi_TradesByOrderAsync(_dbCon, symbol, false, ct);
-                        trades = await doApi_LatestBuyLotAsync(_dbCon, symbol, ct);
+                        var qty = a.getQuantity();                     
+
+                        cMexcOrderLotSummaryGroup<string, cMexcOrderLotSummary> tradesOrders = await doApi_LatestBuyLotAsync(_dbCon, symbol, ct);
+                        var lastTradeOrder = tradesOrders.Items.FirstOrDefault();
+                        var qtyPrev = lastTradeOrder.mpolsBuyQty;
+                        var lastPricePrev = lastTradeOrder?.mpolsBuyAvgCost;
+                        var marketValueNow = lastPrice * qty;
+                        
+                        var marketValuePrev = lastTradeOrder?.mpolsBuyAvgCost * qtyPrev;
+                        //TODO: This will be a settable / resettable value
+                        //Especially after a deposit or withdrawal
+                        var p_assetprofit = new cAssetProfit
+                        {
+                            assprAsset = a.asset,
+                            assprExchangeId = "EXC_MEXC",
+                            assprOrderId = lastTradeOrder!.mpolsOrderId,
+                            assprPrice = marketValuePrev!.Value,
+                        };
+                        var _c_assetprofit = _e_asset.doAssetProfitRead(_dbCon, p_assetprofit);
+                        if (_c_assetprofit.apiSuccess && _c_assetprofit.apiData is null)
+                        {
+                            _c_assetprofit = _e_asset.doAssetProfitUpdate(_dbCon, p_assetprofit);
+                        }
+                        var unrealizedPnl = marketValueNow - _c_assetprofit.apiData!.assprPrice;
+                        trades = new cMexcOrderLotSummaryGroup<string, cMexcOrderLotSummary>
+                        {
+                            Key = a.asset,
+                            Items = new List<cMexcOrderLotSummary>
+                            {
+                                new cMexcOrderLotSummary
+                                {
+                                    mpolsSymbol = a.asset, //symbol,
+                                    mpolsOrderId = "assetcoin",
+                                    mpolsFilledAt = DateTime.Now,
+                                    mpolsBuyQty = qty,           // total qty filled on that orderId (buys only)
+                                    mpolsBuyCostQuote = 0.0m,     // Σ(price*qty + buy-fees-in-quote)
+                                    mpolsBuyAvgCost = lastPricePrev!.Value,        // BuyCostQuote / BuyQty
+                                    mpolsBuyFeesQuote = 0.0m,      // fees charged on the buy fills
+                                    mpolsRemainingQty = 0.0m,      // after subsequent sells
+                                    mpolsRealizedPnlFromThisLot = 0.0m, // realized due to sells after this order
+                                    mpolsCurrentPrice = lastPrice,
+                                    mpolsMarketValue = qty * lastPrice,
+                                    mpolsUnrealizedPnl = unrealizedPnl
+                                }
+                            }
+                        };
+
+                        
                     }
 
                     ret.apiData.Add(trades);
@@ -210,7 +257,7 @@ namespace GooseGooseGo_Net.ef
 
             foreach (var sym in candidates)
             {
-                var t = await doApi_MyTradesAsync(_dbCon, sym, limit: 100);     // asc/desc unk, so sort next
+                var t = await doApi_MyTradesAsync(_dbCon, sym, 100, null, ct);     // asc/desc unk, so sort next
                 if (t == null || t.Count == 0) continue;
 
                 var latestBuy = t.Where(x => x.isBuyer).OrderByDescending(x => x.time).FirstOrDefault();
@@ -319,14 +366,14 @@ namespace GooseGooseGo_Net.ef
         }
 
 
-        public async Task<List<MexcTickerEntry>?> doApi_TickerListAsync(dbContext _dbCon)
+        public async Task<List<MexcTickerEntry>?> doApi_TickerListAsync(dbContext _dbCon, List<KeyValuePair<string, string>>? qListIn, CancellationToken ct = default)
         {
             cApiParms p = new cApiParms
             {
                 apMethod = "GET",
                 apPath = "/api/v3/ticker/24hr"
             };
-            string retJson = await doApi_Base(_dbCon, p);
+            string retJson = await doApi_Base(_dbCon, p, ct);
 
             var ret = JsonSerializer.Deserialize<List<MexcTickerEntry>>(retJson);
 
@@ -343,6 +390,7 @@ namespace GooseGooseGo_Net.ef
                 apDoSign = true,              // <<— required for private endpoints
                 apQuery = new()
             };
+            List<KeyValuePair<string, string>>? qListIn = null;
             string retJson = await doApi_Base(_dbCon, p, ct);           // your HMAC-signed/base method
             ret =  JsonSerializer.Deserialize<cMexcAccounts>(retJson);
 
@@ -354,7 +402,8 @@ namespace GooseGooseGo_Net.ef
         {
             List<MexcTickerPrice>? ret = null;
             var p = new cApiParms { apMethod = "GET", apPath = "/api/v3/ticker/price", apDoSign = false };
-            string retJson = await doApi_Base(_dbCon, p); // public endpoint
+            List<KeyValuePair<string, string>>? qListIn = null;
+            string retJson = await doApi_Base(_dbCon, p, ct); // public endpoint
             ret = JsonSerializer.Deserialize<List<MexcTickerPrice>>(retJson)
                    ?? new List<MexcTickerPrice>();
             return ret;
@@ -406,7 +455,7 @@ namespace GooseGooseGo_Net.ef
 
         // user trades for one symbol (private)
         public async Task<List<MexcMyTrade>?> doApi_MyTradesAsync(
-            dbContext _dbCon, string symbol, int limit = 100, long? fromId = null)
+            dbContext _dbCon, string symbol, int limit, long? fromId, CancellationToken ct)
         {
             List<MexcMyTrade>? ret = null;
 
@@ -429,8 +478,8 @@ namespace GooseGooseGo_Net.ef
                     apQuery = q,
                     apDoSign = true   // 🔴 REQUIRED for private endpoints
                 };
-
-                var retJson = await doApi_Base(_dbCon, p); // this adds timestamp/signature + header
+                List<KeyValuePair<string, string>>? qListIn = null;
+                var retJson = await doApi_Base(_dbCon, p, ct); // this adds timestamp/signature + header
                 ret = JsonSerializer.Deserialize<List<MexcMyTrade>>(retJson)
                               ?? new List<MexcMyTrade>();
             }
@@ -454,6 +503,7 @@ namespace GooseGooseGo_Net.ef
 
         public async Task<cMexcExchangeInfo> doApi_ExchangeInfoAsync(dbContext _dbCon, string symbol, CancellationToken ct)
         {
+            List<KeyValuePair<string, string>>? qListIn = null;
             var p = new cApiParms { apMethod = "GET", apPath = "/api/v3/exchangeInfo", apQuery = new() { ["symbol"] = symbol } };
             var json = await doApi_Base(_dbCon, p, ct);
             return JsonSerializer.Deserialize<cMexcExchangeInfo>(json)!;
@@ -461,6 +511,7 @@ namespace GooseGooseGo_Net.ef
 
         public async Task<cMexcBookTicker?> doApi_TickerBookAsync(dbContext _dbCon, string symbol, CancellationToken ct)
         {
+            List<KeyValuePair<string, string>>? qListIn = null;
             var p = new cApiParms { apMethod = "GET", apPath = "/api/v3/ticker/bookTicker", apQuery = new() { ["symbol"] = symbol } };
             var json = await doApi_Base(_dbCon, p, ct);
             return JsonSerializer.Deserialize<cMexcBookTicker>(json);
@@ -541,6 +592,7 @@ namespace GooseGooseGo_Net.ef
                     ["newOrderRespType"] = "RESULT"
                 }
             };
+            List<KeyValuePair<string, string>>? qListIn = null;
             var json = await doApi_Base(_dbCon, p, ct);
             // Return raw or map to your typed response
             return JsonSerializer.Deserialize<JsonElement>(json);

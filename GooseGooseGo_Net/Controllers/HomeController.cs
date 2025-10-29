@@ -42,7 +42,7 @@ namespace GooseGooseGo_Net.Controllers
             var _e_kucoin = new ent_kucoin(_conf, _logger, _httpClientFactory, _dbCon);
 
 
-            List<MexcTickerEntry>? mexcData = await _e_mexc.doApi_TickerListAsync(_dbCon);
+            //List<MexcTickerEntry>? mexcData = await _e_mexc.doApi_TickerListAsync(_dbCon);
 
             // Get Kraken Portfolio Data
             //KrakenEnvelope<KrakenTradesHistoryResult>? krakenTradesHistoryData = await _e_kraken.doApi_TradesHistoryAsync(_dbCon);
