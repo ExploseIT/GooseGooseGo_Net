@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Data;
@@ -33,13 +34,15 @@ namespace GooseGooseGo_Net.ef
         private readonly string _encryptionKey;
         private readonly cApiDetails? _apiDetails;
 
+        private readonly IPriceCache _priceCache; // inject via ctor
         Exception? exc = null;
 
         public ent_mexc(
             IConfiguration conf,
             ILogger<mApp> logger,
             IHttpClientFactory httpClientFactory,
-            dbContext _dbCon
+            dbContext _dbCon,
+            IPriceCache priceCache
             )
         {
             _conf = conf;
@@ -47,7 +50,10 @@ namespace GooseGooseGo_Net.ef
             _httpClientFactory = httpClientFactory;
             _encryptionKey = conf.GetSection("Encryption").GetValue<string>("EncryptionKey") ?? "";
              _apiDetails = doApiDetailsDecrypt(_dbCon!)!;
+            _priceCache = priceCache;   // <- THIS was missing
         }
+
+
 
         public string doApiDetailsEncrypt(dbContext dbCon)
         {
@@ -366,7 +372,50 @@ namespace GooseGooseGo_Net.ef
         }
 
 
-        public async Task<List<MexcTickerEntry>?> doApi_TickerListAsync(dbContext _dbCon, List<KeyValuePair<string, string>>? qListIn, CancellationToken ct = default)
+
+
+        public async Task<List<MexcTickerEntry>?> doApi_TickerListAsync(
+            dbContext _dbCon,
+            List<KeyValuePair<string, string>>? qListIn,
+            CancellationToken ct = default)
+        {
+            // 1) unchanged REST sweep
+            var p = new cApiParms { apMethod = "GET", apPath = "/api/v3/ticker/24hr" };
+            string retJson = await doApi_Base(_dbCon, p, ct);
+            var ret = JsonSerializer.Deserialize<List<MexcTickerEntry>>(retJson) ?? new();
+
+            // 2) ultra-fast overlay for selected futures symbols
+            var preferWs = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "BTCUSDT" };
+
+            foreach (var t in ret)
+            {
+                var sym = t.symbol?.Trim();
+                if (string.IsNullOrEmpty(sym)) continue;
+                if (!preferWs.Contains(sym)) continue;
+
+                if (_priceCache.TryGet(sym, out var snap))
+                {
+                    // last / bid / ask
+                    if (snap.Last.HasValue) t.lastPrice = snap.Last.Inv();
+                    if (snap.Bid.HasValue) t.bidPrice = snap.Bid.Inv();
+                    if (snap.Ask.HasValue) t.askPrice = snap.Ask.Inv();
+
+                    // 24h stats (only overwrite if present; otherwise keep REST)
+                    if (snap.High24h.HasValue) t.highPrice = snap.High24h.Inv();
+                    if (snap.Low24h.HasValue) t.openPrice = string.IsNullOrEmpty(t.openPrice) ? "" : t.openPrice; // leave as REST unless you prefer to set low here
+                    if (snap.Vol24.HasValue) t.volume = snap.Vol24.Inv();       // base volume
+                    if (snap.Amt24.HasValue) t.quoteVolume = snap.Amt24.Inv();  // quote volume
+
+                    // timestamps: keep REST open/close if you rely on them for UI;
+                    // you could set t.closeTime = snap.TsMs if you want "as of" now.
+                    if (snap.TsMs > 0 && t.closeTime == 0) t.closeTime = snap.TsMs;
+                }
+            }
+            return ret;
+        }
+
+
+        public async Task<List<MexcTickerEntry>?> doApi_TickerListAsync2(dbContext _dbCon, List<KeyValuePair<string, string>>? qListIn, CancellationToken ct = default)
         {
             cApiParms p = new cApiParms
             {
@@ -1001,25 +1050,27 @@ namespace GooseGooseGo_Net.ef
         [property: JsonPropertyName("result")] T? Result
     );
 
+    public sealed record MexcWsTickerSnapshot(
+    decimal? Last = null,
+    decimal? Bid = null,
+    decimal? Ask = null,
+    decimal? High24h = null,
+    decimal? Low24h = null,
+    decimal? Vol24 = null,   // base volume 24h
+    decimal? Amt24 = null,   // quote volume 24h
+    long TsMs = 0
+);
+
+    // helper
+    public static class DecFmt
+    {
+        public static string Inv(this decimal? d)
+            => d.HasValue ? d.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "";
+    }
+
+
     public class MexcTickerEntry
     {
-        /*"symbol": "METALUSDT",
-        "priceChange": "-0.013",
-        "priceChangePercent": "-0.0319",
-        "prevClosePrice": "0.40666",
-        "lastPrice": "0.39366",
-        "bidPrice": "0.39337",
-        "bidQty": "3.24",
-        "askPrice": "0.3941",
-        "askQty": "121.34",
-        "openPrice": "0.40666",
-        "highPrice": "0.41618",
-        "lowPrice": "0.39019",
-        "volume": "89050.54",
-        "quoteVolume": "35717.78507",
-        "openTime": 1759627383256,
-        "closeTime": 1759627447124,
-        "count": null*/
         public string symbol { get; set; } = "";
         public string priceChange { get; set; } = "";
         public string priceChangePercent { get; set; } = "";

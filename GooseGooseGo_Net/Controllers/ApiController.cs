@@ -17,6 +17,13 @@ namespace GooseGooseGo_Net.Controllers
         private IWebHostEnvironment _env;
         private IHttpClientFactory _httpClientFactory;
 
+        private readonly ent_mexc _svc;
+
+        public ApiController(ent_mexc svc)
+        {
+            _svc = svc;
+        }
+
         public ApiController(ILogger<mApp> logger, IConfiguration conf, IWebHostEnvironment env, IHttpClientFactory httpClientFactory, dbContext dbCon)
         {
             _logger = logger;
@@ -56,9 +63,9 @@ namespace GooseGooseGo_Net.Controllers
         [HttpPost("doMexcReturnPortfolio")]
         public async Task<ActionResult<ApiResponse<List<cMexcOrderLotSummaryGroup<string, cMexcOrderLotSummary>>>>> DoMexcReturnPortfolio(CancellationToken ct)
         {
-            var svc = new ent_mexc(_conf, _logger, _httpClientFactory, _dbCon);
+            //var svc = new ent_mexc(_conf, _logger, _httpClientFactory, _dbCon);
 
-            var ret = await svc.doMexcReturnPortfolio(_dbCon, ct);
+            var ret = await _svc.doMexcReturnPortfolio(_dbCon, ct);
 
             if (ret is null)
                 return StatusCode(502, "Upstream returned null.");
@@ -70,7 +77,7 @@ namespace GooseGooseGo_Net.Controllers
         [HttpPost("doMexcSell100")]
         public async Task<ActionResult<object>> doMexcSell100(cMexcSellParms p, CancellationToken ct)
         {
-            var _svc = new ent_mexc(_conf, _logger, _httpClientFactory, _dbCon);
+            //var _svc = new ent_mexc(_conf, _logger, _httpClientFactory, _dbCon);
             // 1) pre-check
             var preview = await _svc.doMexcPreviewSell100Async(_dbCon, p, ct);
 

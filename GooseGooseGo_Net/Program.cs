@@ -1,4 +1,4 @@
-
+﻿
 using GooseGooseGo_Net.ef;
 using GooseGooseGo_Net.Models;
 using GooseGooseGo_Net.Services;
@@ -24,6 +24,7 @@ builder.Logging.AddConsole();
 
 builder.Configuration.GetSection("CookieAuth").Bind(cookieAuthOptions);
 builder.Services.AddDbContext<dbContext>(options => options.UseSqlServer(connectionString));
+builder.Services.AddSingleton<IPriceCache, PriceCache>();
 builder.Services.AddSingleton<AssetDataService>();
 builder.Services.AddAuthorization();
 builder.Services.AddControllersWithViews(); // <-- Use this for MVC views
@@ -31,7 +32,19 @@ builder.Services.AddControllersWithViews(); // <-- Use this for MVC views
 builder.Services.AddHttpClient();
 // builder.Services.AddRazorPages(); // <-- Add if you use Razor Pages
 
+// ----------------------------------
+// Mexc websockets code
+builder.Services.AddSignalR();
+builder.Services.AddScoped<ent_mexc>();   // 👈 add this
+builder.Services.AddSingleton<IPriceCache, PriceCache>();
+//builder.Services.AddHostedService<MexcWsPriceStreamService>(); // see below
+builder.Services.AddHostedService<MexcFuturesWsService>(); 
+// ----------------------------------
 var app = builder.Build();
+
+
+app.MapHub<PriceHub>("/hubs/prices");
+
 
 app.UseRateLimiter();
 
@@ -75,7 +88,7 @@ app.MapPost("/v1/signal_info", async (HttpRequest req, HttpResponse res) =>
         return;
     }
 
-    // 3) hand off to background work (don�t block the webhook)
+    // 3) hand off to background work (don’t block the webhook)
     _ = Task.Run(() =>
     {
         // TODO: enqueue to your bus/queue, save to DB, trigger bot, etc.

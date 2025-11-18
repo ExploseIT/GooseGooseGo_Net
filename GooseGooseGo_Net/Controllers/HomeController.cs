@@ -17,14 +17,16 @@ namespace GooseGooseGo_Net.Controllers
         private IWebHostEnvironment _env;
         private dbContext _dbCon;
         private IHttpClientFactory _httpClientFactory;
+        private readonly IPriceCache _priceCache;
 
-        public HomeController(ILogger<mApp> logger, IConfiguration conf, IWebHostEnvironment env, IHttpClientFactory httpClientFactory, dbContext dbCon)
+        public HomeController(ILogger<mApp> logger, IConfiguration conf, IWebHostEnvironment env, IHttpClientFactory httpClientFactory, dbContext dbCon, IPriceCache priceCache)
         {
             _logger = logger;
             _conf = conf;
             _env = env;
             _dbCon = dbCon;
             _httpClientFactory = httpClientFactory;
+            _priceCache = priceCache;
         }
 
 
@@ -37,7 +39,7 @@ namespace GooseGooseGo_Net.Controllers
 
             var _e_cmcap = new ent_cmcap(_conf, _dbCon);
             var _e_kraken = new ent_kraken(_conf, _logger, _httpClientFactory, _dbCon);
-            var _e_mexc = new ent_mexc(_conf, _logger, _httpClientFactory, _dbCon);
+            var _e_mexc = new ent_mexc(_conf, _logger, _httpClientFactory, _dbCon, _priceCache);
             var _e_cryptocom = new ent_cryptocom(_conf, _logger, _httpClientFactory, _dbCon);
             var _e_kucoin = new ent_kucoin(_conf, _logger, _httpClientFactory, _dbCon);
 

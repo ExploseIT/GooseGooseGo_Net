@@ -1,4 +1,4 @@
-
+﻿
 
 using GGG_WorkerService;
 using GooseGooseGo_Net.Services;
@@ -14,6 +14,12 @@ var host = Host.CreateDefaultBuilder(args)
 
         services.AddDbContext<dbContext>(options => options.UseSqlServer(connectionString));
         services.AddSingleton<IConfiguration>(configuration);
+
+        // 🔹 Mexc cache + WS
+        services.AddSingleton<IPriceCache, PriceCache>();
+        //services.AddHostedService<MexcWsPriceStreamService>();
+        services.AddHostedService<MexcFuturesWsService>();           // ✅ keep this
+
         services.AddSingleton<AssetDataService>();
         services.AddHostedService<Worker>();
         services.AddHttpClient();

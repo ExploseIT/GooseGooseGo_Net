@@ -12,13 +12,14 @@ namespace GooseGooseGo_Net.Services
         private readonly IConfiguration _conf;
         private readonly ILogger<mApp> _logger;
         private IHttpClientFactory _httpClientFactory;
-
-        public AssetDataService(IServiceProvider services, IConfiguration conf, ILogger<mApp> logger, IHttpClientFactory httpClientFactory)
+        private readonly IPriceCache _priceCache;
+        public AssetDataService(IServiceProvider services, IConfiguration conf, ILogger<mApp> logger, IHttpClientFactory httpClientFactory, IPriceCache priceCache)
         {
             _services = services;
             _conf = conf;
             _logger = logger;
             _httpClientFactory = httpClientFactory;
+            _priceCache = priceCache;
         }
 
         public async Task RetrieveAndStoreAssetDataAsync(CancellationToken stoppingToken)
@@ -33,7 +34,7 @@ namespace GooseGooseGo_Net.Services
                 List<KeyValuePair<string, string>>? qListIn = null;
                 var e_asset = new ent_asset(_conf, _logger, _httpClientFactory);
                 var e_kraken = new ent_kraken(_conf, _logger, _httpClientFactory,_dbCon);
-                var e_mexc = new ent_mexc(_conf, _logger, _httpClientFactory, _dbCon);
+                var e_mexc = new ent_mexc(_conf, _logger, _httpClientFactory, _dbCon, _priceCache);
                 //var e_cryptocom = new ent_cryptocom(_conf, _logger, _httpClientFactory, _dbCon);
 
                 //var cryptocomData = await e_cryptocom.doApi_TickerListAsync(_dbCon);
