@@ -2,6 +2,7 @@
 using GooseGooseGo_Net.ef;
 using GooseGooseGo_Net.Models;
 using GooseGooseGo_Net.Services;
+using GooseGooseGo_Net.svc_mexc;
 using Microsoft.EntityFrameworkCore;
 
 namespace GooseGooseGo_Net.Services
@@ -12,8 +13,8 @@ namespace GooseGooseGo_Net.Services
         private readonly IConfiguration _conf;
         private readonly ILogger<mApp> _logger;
         private IHttpClientFactory _httpClientFactory;
-        private readonly IPriceCache _priceCache;
-        public AssetDataService(IServiceProvider services, IConfiguration conf, ILogger<mApp> logger, IHttpClientFactory httpClientFactory, IPriceCache priceCache)
+        private readonly PriceCache _priceCache;
+        public AssetDataService(IServiceProvider services, IConfiguration conf, ILogger<mApp> logger, IHttpClientFactory httpClientFactory, PriceCache priceCache)
         {
             _services = services;
             _conf = conf;
@@ -38,7 +39,8 @@ namespace GooseGooseGo_Net.Services
                 //var e_cryptocom = new ent_cryptocom(_conf, _logger, _httpClientFactory, _dbCon);
 
                 //var cryptocomData = await e_cryptocom.doApi_TickerListAsync(_dbCon);
-                var mexcData = await e_mexc.doApi_TickerListAsync(_dbCon!, qListIn, stoppingToken);
+                //var mexcData = await e_mexc.doApi_TickerListAsync(_dbCon!, qListIn, stoppingToken);
+                var mexcData = await e_mexc.doApi_TickerListFuturesAsync(_dbCon!, qListIn, stoppingToken);
 
                 var krakenData = await e_kraken.doApi_TickerListAsync(_dbCon);
                 

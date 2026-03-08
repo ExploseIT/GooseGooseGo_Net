@@ -2,6 +2,7 @@
 
 using GooseGooseGo_Net.ef;
 using GooseGooseGo_Net.Models;
+using GooseGooseGo_Net.svc_mexc;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
@@ -16,21 +17,30 @@ namespace GooseGooseGo_Net.Controllers
         private IConfiguration _conf;
         private IWebHostEnvironment _env;
         private IHttpClientFactory _httpClientFactory;
+        private readonly PriceCache _priceCache;
 
         private readonly ent_mexc _svc;
 
-        public ApiController(ent_mexc svc)
-        {
-            _svc = svc;
-        }
+        //public ApiController(ent_mexc svc)
+        //{
+        //    _svc = svc;
+        //}
 
-        public ApiController(ILogger<mApp> logger, IConfiguration conf, IWebHostEnvironment env, IHttpClientFactory httpClientFactory, dbContext dbCon)
+        public ApiController(ILogger<mApp> logger, IConfiguration conf, IWebHostEnvironment env, IHttpClientFactory httpClientFactory, dbContext dbCon, ent_mexc svc)
         {
             _logger = logger;
             _dbCon = dbCon;
             _conf = conf;
             _env = env;
             _httpClientFactory = httpClientFactory;
+            _svc = svc;
+            //_priceCache = priceCache;
+        }
+
+        [HttpGet("doApiGet")]
+        public string doApiGet()
+        {
+            return "Get Success";
         }
 
         [HttpPost("doAssetPercentageSwingList")]

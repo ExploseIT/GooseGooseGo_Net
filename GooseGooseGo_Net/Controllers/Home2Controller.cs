@@ -1,0 +1,98 @@
+
+
+using GooseGooseGo_Net.ef;
+using GooseGooseGo_Net.Models;
+using GooseGooseGo_Net.Services;
+using GooseGooseGo_Net.svc_mexc;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Configuration;
+using System.Diagnostics;
+
+namespace GooseGooseGo_Net.Controllers
+{
+    public class HomeController2 : Controller
+    {
+        private readonly ILogger<mApp> _logger;
+        private IConfiguration _conf;
+        private IWebHostEnvironment _env;
+        private dbContext _dbCon;
+        private IHttpClientFactory _httpClientFactory;
+        private readonly PriceCache _priceCache;
+
+        public HomeController2(ILogger<mApp> logger, IConfiguration conf, IWebHostEnvironment env, IHttpClientFactory httpClientFactory, dbContext dbCon, PriceCache priceCache)
+        {
+            _logger = logger;
+            _conf = conf;
+            _env = env;
+            _dbCon = dbCon;
+            _httpClientFactory = httpClientFactory;
+            _priceCache = priceCache;
+        }
+
+
+        public async Task<IActionResult> Index()
+        {
+            HttpContext _hc = this.HttpContext;
+            Exception? exc = null;
+
+            mApp _m_App = new mApp(_hc, this.Request, this.RouteData, _dbCon, _conf, _env, _logger);
+
+            var _e_cmcap = new ent_cmcap(_conf, _dbCon);
+            var _e_kraken = new ent_kraken(_conf, _logger, _httpClientFactory, _dbCon);
+            var _e_mexc = new ent_mexc(_conf, _logger, _httpClientFactory, _dbCon, _priceCache);
+            var _e_cryptocom = new ent_cryptocom(_conf, _logger, _httpClientFactory, _dbCon);
+            var _e_kucoin = new ent_kucoin(_conf, _logger, _httpClientFactory, _dbCon);
+
+
+            //List<MexcTickerEntry>? mexcData = await _e_mexc.doApi_TickerListAsync(_dbCon);
+
+            // Get Kraken Portfolio Data
+            //KrakenEnvelope<KrakenTradesHistoryResult>? krakenTradesHistoryData = await _e_kraken.doApi_TradesHistoryAsync(_dbCon);
+            //Dictionary<string, decimal>? krakenBalanceData = await _e_kraken.doApi_AssetBalanceAsync(_dbCon);
+            //var _krakenTickerParms = _e_kraken.doGetTickerPairsFromBalance(krakenBalanceData);
+            //KrakenEnvelope<Dictionary<string, KrakenTickerEntry>>? krakenTickerData = await _e_kraken.doApi_TickerAsync(_dbCon,_krakenTickerParms);
+            //var _cKrakenPortfolio = _e_kraken.doGetPortfolio(_dbCon, krakenTradesHistoryData, krakenBalanceData, krakenTickerData);
+
+            // Get Mexc Portfolio Data
+            cMexcAccounts? mexcAccountsData = await _e_mexc.doApi_AccountsAsync(_dbCon);
+            //Dictionary<string, decimal>? mexcBalanceData = await _e_mexc.doApi_AssetBalanceAsync(_dbCon);
+            //var _mexcTickerParms = _e_mexc.doGetTickerPairsFromBalance(mexcBalanceData);
+            //KrakenEnvelope<Dictionary<string, KrakenTickerEntry>>? mexcTickerData = await _e_mexc.doApi_TickerAsync(_dbCon, _mexcTickerParms);
+            //_e_mexc.doGetPortfolio(_dbCon, mexcTradesHistoryData, mexcBalanceData, mexcTickerData);
+
+
+
+            KrakenEnvelope<Dictionary<string, KrakenTickerEntry>>? krakenData = await _e_kraken.doApi_TickerListAsync(_dbCon);
+            /*
+            cReturnedKucoin? kucoinData = await _e_kucoin.doApi_TickerListAsync(_dbCon);
+            
+            
+            cReturnedCryptoCom? cryptocomData = await _e_cryptocom.doApi_TickerListAsync(_dbCon);
+
+            string json_cmc = await _e_cmcap.doAPIQuery();
+            
+
+            _m_App._krakenData = krakenData;
+            */
+
+            return View(_m_App);
+        }
+
+
+
+    
+
+
+        public IActionResult Privacy()
+        {
+            return View();
+        }
+
+        [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
+        public IActionResult Error()
+        {
+            return View(new ErrorViewModel { RequestId = Activity.Current?.Id ?? HttpContext.TraceIdentifier });
+        }
+    }
+}

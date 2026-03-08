@@ -48,6 +48,35 @@ function doApiPost(cb, parms, url) {
 
 }
 
+function doApiGet(cb, parms, url) {
+    console.log("doApiGet", url);
+
+    let parmsJson = JSON.stringify(parms);
+
+    let _url = getUrl(url);
+
+    var ret = new api_ret();
+
+    $.ajax(
+        {
+            type: "GET",
+            data: parmsJson,
+            url: _url,
+            contentType: "application/json; charset=utf-8",
+            dataType: "json",
+        }).done(function (data, textStatus, jqXHR) {
+            ret.data = data;
+            ret.textStatus = textStatus;
+            ret.jqXHR = jqXHR;
+            cb(ret);
+        }).fail(function (jqXHR, textStatus) {
+            ret.textStatus = textStatus;
+            ret.jqXHR = jqXHR;
+            cb(ret);
+        });
+
+}
+
 
 function doLocalPullData(form_id) {
     let form_elements = $(form_id).find('input, select, textarea');

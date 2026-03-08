@@ -136,24 +136,6 @@
 
 
     function doDataRead() {
-        let p_parmsGet = {};
-
-        // doApiGet(doContinueGet,p_parmsGet,"api/doApiGet");
-
-        fetchPrices();
-    }
-
-   
-    async function fetchPrices() {
-        const response = await fetch('/Home/prices');
-        const data = await response.json();
-        // Update UI with data, e.g., highlight symbols with large Variation24hPercent
-        console.log(data);
-    }
-
-    // Call fetchPrices() on load or setInterval(fetchPrices, 30000); for every 30s
-    function doContinueGet(ret) {
-
         let p_aps_up = {
             aspspUpSwing: true,
             aspspMinSwing: 0.010,
@@ -196,12 +178,30 @@
     
     function doContinueInfoList(ret) {
         l_a_info = ret.data.apiData;
-        if (mexcCountDown > 0) {
-            mexcCountDown--;
-            doContinueMexcPortfolio(null);
+        if (kpCountDown > 0) {
+            kpCountDown--;
+            doContinueKrakenPortfolio(null);
         }
         else {
-                 doApiPost(doContinueMexcPortfolio, null, "api/doMexcReturnPortfolio");
+            doApiPost(doContinueKrakenPortfolio, null, "api/doKrakenReturnPortfolio");
+        }
+    }
+
+    function doContinueKrakenPortfolio(ret)
+    {
+        if (ret !== null) {
+            if (ret.data.apiSuccess === false) {
+                kpCountDown = 2;
+            } else {
+                l_kraken_portfolio = ret.data.apiData;
+            }
+        }
+        if (mexcCountDown > 0) {
+            mexcCountDown--;
+            doContinueDisplayLists();
+        }
+        else {
+            doApiPost(doContinueMexcPortfolio, null, "api/doMexcReturnPortfolio");
         }
     }
 

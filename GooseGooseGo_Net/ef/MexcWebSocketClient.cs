@@ -45,6 +45,6 @@
         }
     }
 
-    public class PriceHub : Hub { } // broadcast via Clients.All.SendAsync("price", symbol, price, ts)
+
 
 }

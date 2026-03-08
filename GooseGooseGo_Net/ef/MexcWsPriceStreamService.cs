@@ -1,6 +1,7 @@
 ﻿namespace GooseGooseGo_Net.ef
 {
     using GooseGooseGo_Net.Models;
+    using GooseGooseGo_Net.svc_mexc;
     using Microsoft.AspNetCore.SignalR;
     using System.Net.WebSockets;
     using System.Text;
@@ -10,14 +11,14 @@
     {
         private readonly ILogger<MexcWsPriceStreamService> _log;
         private readonly IServiceProvider _sp;
-        private readonly IPriceCache _prices;
+        private readonly PriceCache _prices;
         private ClientWebSocket? _ws;
         private readonly Uri _uri = new("wss://wbs-api.mexc.com/ws"); // per new docs
         private readonly TimeSpan _maxSession = TimeSpan.FromHours(23.5); // force daily rotate
         private readonly TimeSpan _pingEvery = TimeSpan.FromSeconds(20);
         private readonly HashSet<string> _subs = new(StringComparer.OrdinalIgnoreCase);
 
-        public MexcWsPriceStreamService(ILogger<MexcWsPriceStreamService> log, IServiceProvider sp, IPriceCache prices)
+        public MexcWsPriceStreamService(ILogger<MexcWsPriceStreamService> log, IServiceProvider sp, PriceCache prices)
         { _log = log; _sp = sp; _prices = prices; }
 
         protected override async Task ExecuteAsync(CancellationToken ct)

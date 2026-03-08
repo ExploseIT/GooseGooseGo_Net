@@ -1,4 +1,5 @@
 ﻿using GooseGooseGo_Net.Models;
+using GooseGooseGo_Net.svc_mexc;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -34,7 +35,7 @@ namespace GooseGooseGo_Net.ef
         private readonly string _encryptionKey;
         private readonly cApiDetails? _apiDetails;
 
-        private readonly IPriceCache _priceCache; // inject via ctor
+        private readonly PriceCache _priceCache; // inject via ctor
         Exception? exc = null;
 
         public ent_mexc(
@@ -42,7 +43,7 @@ namespace GooseGooseGo_Net.ef
             ILogger<mApp> logger,
             IHttpClientFactory httpClientFactory,
             dbContext _dbCon,
-            IPriceCache priceCache
+            PriceCache priceCache
             )
         {
             _conf = conf;
@@ -191,31 +192,35 @@ namespace GooseGooseGo_Net.ef
                         var qty = a.getQuantity();                     
 
                         cMexcOrderLotSummaryGroup<string, cMexcOrderLotSummary> tradesOrders = await doApi_LatestBuyLotAsync(_dbCon, symbol, ct);
-                        var lastTradeOrder = tradesOrders.Items.FirstOrDefault();
-                        var qtyPrev = lastTradeOrder.mpolsBuyQty;
-                        var lastPricePrev = lastTradeOrder?.mpolsBuyAvgCost;
-                        var marketValueNow = lastPrice * qty;
-                        
-                        var marketValuePrev = lastTradeOrder?.mpolsBuyAvgCost * qtyPrev;
-                        //TODO: This will be a settable / resettable value
-                        //Especially after a deposit or withdrawal
-                        var p_assetprofit = new cAssetProfit
+                        if (tradesOrders is not null && tradesOrders.Items.Count > 0)
                         {
-                            assprAsset = a.asset,
-                            assprExchangeId = "EXC_MEXC",
-                            assprOrderId = lastTradeOrder!.mpolsOrderId,
-                            assprPrice = marketValuePrev!.Value,
-                        };
-                        var _c_assetprofit = _e_asset.doAssetProfitRead(_dbCon, p_assetprofit);
-                        if (_c_assetprofit.apiSuccess && _c_assetprofit.apiData is null)
-                        {
-                            _c_assetprofit = _e_asset.doAssetProfitUpdate(_dbCon, p_assetprofit);
-                        }
-                        var unrealizedPnl = marketValueNow - _c_assetprofit.apiData!.assprPrice;
-                        trades = new cMexcOrderLotSummaryGroup<string, cMexcOrderLotSummary>
-                        {
-                            Key = a.asset,
-                            Items = new List<cMexcOrderLotSummary>
+                            var lastTradeOrder = tradesOrders.Items.FirstOrDefault();
+                            var qtyPrev = lastTradeOrder.mpolsBuyQty;
+                            var lastPricePrev = lastTradeOrder?.mpolsBuyAvgCost;
+                            var marketValueNow = lastPrice * qty;
+
+                            var marketValuePrev = lastTradeOrder?.mpolsBuyAvgCost * qtyPrev;
+                            //TODO: This will be a settable / resettable value
+                            //Especially after a deposit or withdrawal
+                            var p_assetprofit = new cAssetProfit
+                            {
+                                assprAsset = a.asset,
+                                assprExchangeId = "EXC_MEXC",
+                                assprOrderId = lastTradeOrder!.mpolsOrderId,
+                                assprPrice = marketValuePrev!.Value,
+                            };
+                            var _c_assetprofit = _e_asset.doAssetProfitRead(_dbCon, p_assetprofit);
+                            if (_c_assetprofit.apiSuccess && _c_assetprofit.apiData is null)
+                            {
+                                _c_assetprofit = _e_asset.doAssetProfitUpdate(_dbCon, p_assetprofit);
+                            }
+                            if (_c_assetprofit.apiSuccess && _c_assetprofit.apiData is null)
+                            {
+                                var unrealizedPnl = marketValueNow - _c_assetprofit.apiData!.assprPrice;
+                                trades = new cMexcOrderLotSummaryGroup<string, cMexcOrderLotSummary>
+                                {
+                                    Key = a.asset,
+                                    Items = new List<cMexcOrderLotSummary>
                             {
                                 new cMexcOrderLotSummary
                                 {
@@ -233,10 +238,13 @@ namespace GooseGooseGo_Net.ef
                                     mpolsUnrealizedPnl = unrealizedPnl
                                 }
                             }
-                        };
+                                };
+                            }
+                        }
 
                         
                     }
+
 
                     ret.apiData.Add(trades);
                 }
@@ -372,6 +380,53 @@ namespace GooseGooseGo_Net.ef
         }
 
 
+
+        public async Task<List<MexcTickerEntry>?> doApi_TickerListFuturesAsync(
+    dbContext _dbCon,
+    List<KeyValuePair<string, string>>? qListIn,
+    CancellationToken ct = default)
+        {
+            // 1) unchanged REST sweep
+            var p = new cApiParms { apMethod = "GET", apPath = "/api/v1/contract/ticker" };
+            string retJson = await doApi_Base(_dbCon, p, ct);
+
+            //// FIX: Check if the response is null or empty before parsing
+            //if (string.IsNullOrWhiteSpace(retJson))
+            //{
+            //    //_log.LogWarning("MEXC API returned an empty response. Check your Base URL and API Permissions.");
+            //    return new List<MexcTickerEntry>();
+            //}
+            var ret = JsonSerializer.Deserialize<List<MexcTickerEntry>>(retJson) ?? new();
+
+            // 2) ultra-fast overlay for selected futures symbols
+            var preferWs = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "BTCUSDT" };
+
+            foreach (var t in ret)
+            {
+                var sym = t.symbol?.Trim();
+                if (string.IsNullOrEmpty(sym)) continue;
+                if (!preferWs.Contains(sym)) continue;
+
+                if (_priceCache.TryGet(sym, out var snap))
+                {
+                    // last / bid / ask
+                    if (snap.Last.HasValue) t.lastPrice = snap.Last.Inv();
+                    if (snap.Bid.HasValue) t.bidPrice = snap.Bid.Inv();
+                    if (snap.Ask.HasValue) t.askPrice = snap.Ask.Inv();
+
+                    // 24h stats (only overwrite if present; otherwise keep REST)
+                    if (snap.High24h.HasValue) t.highPrice = snap.High24h.Inv();
+                    if (snap.Low24h.HasValue) t.openPrice = string.IsNullOrEmpty(t.openPrice) ? "" : t.openPrice; // leave as REST unless you prefer to set low here
+                    if (snap.Vol24.HasValue) t.volume = snap.Vol24.Inv();       // base volume
+                    if (snap.Amt24.HasValue) t.quoteVolume = snap.Amt24.Inv();  // quote volume
+
+                    // timestamps: keep REST open/close if you rely on them for UI;
+                    // you could set t.closeTime = snap.TsMs if you want "as of" now.
+                    if (snap.TsMs > 0 && t.closeTime == 0) t.closeTime = snap.TsMs;
+                }
+            }
+            return ret;
+        }
 
 
         public async Task<List<MexcTickerEntry>?> doApi_TickerListAsync(
@@ -1050,16 +1105,7 @@ namespace GooseGooseGo_Net.ef
         [property: JsonPropertyName("result")] T? Result
     );
 
-    public sealed record MexcWsTickerSnapshot(
-    decimal? Last = null,
-    decimal? Bid = null,
-    decimal? Ask = null,
-    decimal? High24h = null,
-    decimal? Low24h = null,
-    decimal? Vol24 = null,   // base volume 24h
-    decimal? Amt24 = null,   // quote volume 24h
-    long TsMs = 0
-);
+
 
     // helper
     public static class DecFmt
@@ -1067,6 +1113,7 @@ namespace GooseGooseGo_Net.ef
         public static string Inv(this decimal? d)
             => d.HasValue ? d.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "";
     }
+
 
 
     public class MexcTickerEntry

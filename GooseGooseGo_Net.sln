@@ -7,6 +7,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GooseGooseGo_Net", "GooseGo
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GGG_WorkerService", "GGG_WorkerService\GGG_WorkerService.csproj", "{8F590D33-28DC-43E7-82FE-0D0DAB96DF0B}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GGG_WinFormer", "GGG_WinFormer\GGG_WinFormer.csproj", "{DE9FAE40-D9B8-4AE6-8139-7F5E3BEAFD46}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -21,6 +23,10 @@ Global
 		{8F590D33-28DC-43E7-82FE-0D0DAB96DF0B}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{8F590D33-28DC-43E7-82FE-0D0DAB96DF0B}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{8F590D33-28DC-43E7-82FE-0D0DAB96DF0B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{DE9FAE40-D9B8-4AE6-8139-7F5E3BEAFD46}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DE9FAE40-D9B8-4AE6-8139-7F5E3BEAFD46}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DE9FAE40-D9B8-4AE6-8139-7F5E3BEAFD46}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DE9FAE40-D9B8-4AE6-8139-7F5E3BEAFD46}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

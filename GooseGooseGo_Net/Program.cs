@@ -3,7 +3,7 @@ using GooseGooseGo_Net.ef;
 using GooseGooseGo_Net.Models;
 using GooseGooseGo_Net.Services;
 using Microsoft.EntityFrameworkCore;
-
+using GooseGooseGo_Net.svc_mexc;
 using Microsoft.AspNetCore.RateLimiting;
 using System.Text.Json;
 
@@ -24,7 +24,7 @@ builder.Logging.AddConsole();
 
 builder.Configuration.GetSection("CookieAuth").Bind(cookieAuthOptions);
 builder.Services.AddDbContext<dbContext>(options => options.UseSqlServer(connectionString));
-builder.Services.AddSingleton<IPriceCache, PriceCache>();
+//builder.Services.AddSingleton<PriceCache, PriceCache>();
 builder.Services.AddSingleton<AssetDataService>();
 builder.Services.AddAuthorization();
 builder.Services.AddControllersWithViews(); // <-- Use this for MVC views
@@ -36,9 +36,9 @@ builder.Services.AddHttpClient();
 // Mexc websockets code
 builder.Services.AddSignalR();
 builder.Services.AddScoped<ent_mexc>();   // 👈 add this
-builder.Services.AddSingleton<IPriceCache, PriceCache>();
+builder.Services.AddSingleton<PriceCache, PriceCache>();
 //builder.Services.AddHostedService<MexcWsPriceStreamService>(); // see below
-builder.Services.AddHostedService<MexcFuturesWsService>(); 
+//builder.Services.AddHostedService<MexcFuturesWsService>(); 
 // ----------------------------------
 var app = builder.Build();
 
