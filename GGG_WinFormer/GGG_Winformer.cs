@@ -1,12 +1,24 @@
 using System.Text.Json;
+using static GGG_WinFormer.GGG_Main;
+using static System.Windows.Forms.VisualStyles.VisualStyleElement.TrackBar;
 
 namespace GGG_WinFormer
 {
     public partial class GGG_Winformer : Form
     {
+        // Global cache for contract sizes
+        private MexcContractResponse? contractInfo = new MexcContractResponse();
+
         public GGG_Winformer()
         {
             InitializeComponent();
+
+            // Initialize the timer
+            updateTimer = new System.Windows.Forms.Timer();
+            updateTimer.Interval = 5000; // Update every 5 seconds (5000ms)
+            updateTimer.Tick += UpdateTimer_Tick;
+            updateTimer.Start();
+
             // The constructor stays light and synchronous. 
             // Logic starts in the Load event.
             this.Load += GGG_Winformer_Load!;
@@ -66,7 +78,35 @@ namespace GGG_WinFormer
 
                         _obj_uiList._tb_output!.Text = "Connected: " + formattedTime;
                     }
+                    
+                    contractInfo = await GGG_Main.Instance.LoadContractDetails();
 
+                    // string respPositions = await GGG_Main.Instance.GetOpenPositions();
+
+                    // 1. Get the raw string as we discussed
+                    string jsonResult = await GGG_Main.Instance.GetOpenPositions();
+
+                    // 2. Deserialize into our C# class
+                    var positionData = System.Text.Json.JsonSerializer.Deserialize<MexcPositionResponse>(jsonResult);
+
+                    if (positionData != null && positionData.success)
+                    {
+                        // Bind to DataGridView
+                        dgvPositions.DataSource = positionData.data;
+
+                        // Hide the integer column by its property name
+                        if (dgvPositions.Columns["positionType"] != null)
+                        {
+                            dgvPositions.Columns["positionType"].Visible = false;
+                        }
+
+                        // Optional: Make the String version look professional
+                        dgvPositions.Columns["positionTypeStr"].HeaderText = "Side";
+                    }
+                    else
+                    {
+                        _obj_uiList._tb_output!.Text = $"Error: {positionData?.code}";
+                    }
                     return; // Success! Exit the loop
                 }
                 catch (Exception ex)
@@ -86,6 +126,107 @@ namespace GGG_WinFormer
                 }
             }
         }
+        public decimal GetAccuratePnL(MexcPosition pos, decimal currentFairPrice)
+        {
+            // Use LINQ to find the first contract matching the symbol
+            var contract = contractInfo.data.FirstOrDefault(c => c.symbol == pos.symbol);
+
+            // If not found, default to 1.0 (or 0.0001 for BTC)
+            decimal multiplier = (contract != null) ? contract.contractSize : 1.0m;
+
+            decimal priceDiff = (pos.positionType == 2)
+                ? (pos.holdAvgPrice - currentFairPrice)  // Short
+                : (currentFairPrice - pos.holdAvgPrice); // Long
+
+            return priceDiff * pos.holdVol * multiplier;
+        }
+
+        private async void UpdateTimer_Tick(object sender, EventArgs e)
+        {
+            updateTimer.Stop();
+            try
+            {
+                string json = await GGG_Main.Instance.GetOpenPositions();
+                var positionData = JsonSerializer.Deserialize<MexcPositionResponse>(json);
+
+                if (positionData != null && positionData.success)
+                {
+                    var tickers = await GGG_Main.Instance.GetAllTickers();
+                    var priceMap = tickers.data.ToDictionary(t => t.symbol, t => t.fairPrice);
+
+                    foreach (var pos in positionData.data)
+                    {
+                        if (priceMap.TryGetValue(pos.symbol, out decimal currentFairPrice))
+                        {
+                            // 3. Use your cached contractSize + live Fair Price
+                            pos.accuratePnL = GetAccuratePnL(pos, currentFairPrice);
+
+                            // 4. THE DEGEN CHECK
+                            if (pos.accuratePnL < -20.0m)
+                            {
+                                //await ExecutePartialClose(pos);
+                            }
+                        }
+                    }
+
+                    // Option A: The "Nuke and Rebind" (Reliable but resets scroll)
+                    dgvPositions.DataSource = null;
+                    dgvPositions.DataSource = positionData.data;
+
+                    // Option B: The "Smooth Update" (Requires setting up a BindingSource)
+                    // myBindingSource.DataSource = positionData.data;
+                    // myBindingSource.ResetBindings(false); 
+
+                    tb_output.Text = $"Last Update: {DateTime.Now:HH:mm:ss} - Rows: {positionData.data.Count}";
+                    // Hide the integer column by its property name
+                    if (dgvPositions.Columns["positionType"] != null)
+                    {
+                        dgvPositions.Columns["positionType"].Visible = false;
+                    }
+
+                    // Optional: Make the String version look professional
+                    dgvPositions.Columns["positionTypeStr"].HeaderText = "Side";
+                }
+            }
+            catch (Exception ex) { tb_output.Text = "Update Error: " + ex.Message; }
+            finally { updateTimer.Start(); }
+        }
+
+        private async void UpdateTimer_Tick_2(object sender, EventArgs e)
+        {
+            // Temporarily stop to prevent overlapping calls if the network is slow
+            updateTimer.Stop();
+
+            try
+            {
+                string json = await GGG_Main.Instance.GetOpenPositions();
+                var positionData = JsonSerializer.Deserialize<MexcPositionResponse>(json);
+
+                if (positionData != null && positionData.success)
+                {
+                    // Hide the integer column by its property name
+                    if (dgvPositions.Columns["positionType"] != null)
+                    {
+                        dgvPositions.Columns["positionType"].Visible = false;
+                    }
+
+                    // Optional: Make the String version look professional
+                    dgvPositions.Columns["positionTypeStr"].HeaderText = "Side";
+
+                    // Force the grid to see a new data source
+                    dgvPositions.DataSource = null;
+                    dgvPositions.DataSource = positionData.data;
+
+                    tb_output.Text = $"Last Update: {DateTime.Now:HH:mm:ss} - Rows: {positionData.data.Count}";
+                }
+            }
+            catch { /* Log errors or update a status label */ }
+            finally
+            {
+                updateTimer.Start(); // Resume the timer
+            }
+        }
+
 
         public obj_uiList _obj_uiList { get; set; }
 
